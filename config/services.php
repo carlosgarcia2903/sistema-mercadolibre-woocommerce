@@ -41,4 +41,10 @@ return [
         'secret' => env('WOOCOMMERCE_SECRET'),
     ],
 
+    'mercadolibre' => [
+        'url' => env('MERCADOLIBRE_URL', 'https://api.mercadolibre.com'),
+        'token' => env('MERCADOLIBRE_TOKEN'),
+        'user_id' => env('MERCADOLIBRE_USER_ID'),
+    ],
+
 ];
