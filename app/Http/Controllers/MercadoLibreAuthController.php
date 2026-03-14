@@ -10,8 +10,12 @@ class MercadoLibreAuthController extends Controller
     public function callback(Request $request)
     {
         $code = $request->query('code');
+        $verifier = $request->query('code_verifier');
         if (!$code) {
             return response()->json(['error' => 'Missing code'], 400);
+        }
+        if (!$verifier) {
+            return response()->json(['error' => 'Missing code_verifier'], 400);
         }
 
         $response = Http::asJson()->post('https://api.mercadolibre.com/oauth/token', [
@@ -20,6 +24,7 @@ class MercadoLibreAuthController extends Controller
             'client_secret' => config('services.mercadolibre.client_secret'),
             'code' => $code,
             'redirect_uri' => config('services.mercadolibre.redirect_uri'),
+            'code_verifier' => $verifier,
         ]);
 
         if (!$response->successful()) {
