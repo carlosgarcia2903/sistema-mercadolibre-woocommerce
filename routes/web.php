@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\MercadoLibreAuthController;
+use App\Http\Controllers\OrdersController;
 use App\Http\Controllers\ProductsController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Foundation\Application;
@@ -19,6 +20,7 @@ Route::get('/ml/callback', [MercadoLibreAuthController::class, 'callback']);
 
 Route::middleware('auth')->group(function () {
     Route::get('/products', [ProductsController::class, 'index'])->name('products.index');
+    Route::get('/orders', [OrdersController::class, 'index'])->name('orders.index');
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
