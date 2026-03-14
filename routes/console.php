@@ -10,4 +10,4 @@ Artisan::command('inspire', function () {
 
 Schedule::command('sync:woocommerce')->everyThirtyMinutes();
 Schedule::command('sync:mercadolibre')->everyThirtyMinutes();
-Schedule::command('ml:refresh-token')->everyFiveHours();
+Schedule::command('ml:refresh-token')->cron('0 */5 * * *');
