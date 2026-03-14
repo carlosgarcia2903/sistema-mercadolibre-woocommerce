@@ -45,6 +45,9 @@ return [
         'url' => env('MERCADOLIBRE_URL', 'https://api.mercadolibre.com'),
         'token' => env('MERCADOLIBRE_TOKEN'),
         'user_id' => env('MERCADOLIBRE_USER_ID'),
+        'client_id' => env('MERCADOLIBRE_CLIENT_ID'),
+        'client_secret' => env('MERCADOLIBRE_CLIENT_SECRET'),
+        'redirect_uri' => env('MERCADOLIBRE_REDIRECT_URI'),
     ],
 
 ];
