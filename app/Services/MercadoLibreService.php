@@ -34,11 +34,15 @@ class MercadoLibreService
         return $response->json();
     }
 
-    public function getShipmentLabel(int|string $shipmentId): string
+    public function getShipmentLabel(int|string $shipmentId): ?string
     {
         $response = $this->client()->get($this->baseUrl . "/shipments/{$shipmentId}/labels", [
             'format' => 'pdf',
         ]);
+
+        if ($response->status() === 404) {
+            return null;
+        }
 
         $response->throw();
         return $response->body();

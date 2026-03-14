@@ -75,20 +75,26 @@ class SyncMercadoLibre extends Command
                 $shipmentId = $o['shipping']['id'] ?? null;
                 if ($shipmentId) {
                     $pdfPath = "mercadolibre/labels/{$shipmentId}.pdf";
+                    $pdfBinary = null;
+
                     if (!Storage::disk('local')->exists($pdfPath)) {
                         $pdfBinary = $ml->getShipmentLabel($shipmentId);
-                        Storage::disk('local')->put($pdfPath, $pdfBinary);
+                        if ($pdfBinary) {
+                            Storage::disk('local')->put($pdfPath, $pdfBinary);
+                        }
                     }
 
-                    MlPdf::updateOrCreate(
-                        ['platform_shipment_id' => (string) $shipmentId],
-                        [
-                            'order_id' => $order->id,
-                            'pdf_url' => null,
-                            'pdf_path' => $pdfPath,
-                            'downloaded_at' => now(),
-                        ]
-                    );
+                    if (Storage::disk('local')->exists($pdfPath)) {
+                        MlPdf::updateOrCreate(
+                            ['platform_shipment_id' => (string) $shipmentId],
+                            [
+                                'order_id' => $order->id,
+                                'pdf_url' => null,
+                                'pdf_path' => $pdfPath,
+                                'downloaded_at' => now(),
+                            ]
+                        );
+                    }
                 }
             }
 
