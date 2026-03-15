@@ -5,6 +5,7 @@ use App\Http\Controllers\MlPdfsController;
 use App\Http\Controllers\OrdersController;
 use App\Http\Controllers\ProductsController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ReportsController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -35,6 +36,10 @@ Route::middleware('auth')->group(function () {
     Route::get('/orders', [OrdersController::class, 'index'])->name('orders.index');
     Route::get('/ml-pdfs', [MlPdfsController::class, 'index'])->name('mlpdfs.index');
     Route::get('/ml-pdfs/{mlPdf}/download', [MlPdfsController::class, 'download'])->name('mlpdfs.download');
+    Route::get('/reports/inventory', [ReportsController::class, 'inventory'])->name('reports.inventory');
+    Route::get('/reports/orders', [ReportsController::class, 'orders'])->name('reports.orders');
+    Route::get('/reports/platforms', [ReportsController::class, 'platformSummary'])->name('reports.platforms');
+    Route::get('/reports/orders/export', [ReportsController::class, 'exportOrdersCsv'])->name('reports.orders.export');
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
