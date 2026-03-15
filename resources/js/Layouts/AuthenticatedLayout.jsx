@@ -42,6 +42,12 @@ export default function AuthenticatedLayout({ header, children }) {
                                 >
                                     Órdenes
                                 </NavLink>
+                                <NavLink
+                                    href={route('mlpdfs.index')}
+                                    active={route().current('mlpdfs.index')}
+                                >
+                                    PDFs ML
+                                </NavLink>
                             </div>
                         </div>
 
@@ -157,6 +163,12 @@ export default function AuthenticatedLayout({ header, children }) {
                             active={route().current('orders.index')}
                         >
                             Órdenes
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink
+                            href={route('mlpdfs.index')}
+                            active={route().current('mlpdfs.index')}
+                        >
+                            PDFs ML
                         </ResponsiveNavLink>
                     </div>
 
