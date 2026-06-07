@@ -42,7 +42,8 @@ class SyncWooCommerce extends Command
         } while (!empty($products));
 
         $this->info('Syncing orders...');
-        $after = $this->option('after');
+        $after = $this->option('after') ?? now()->subDays(3)->toIso8601String();
+        $this->info("Fetching orders after: {$after}");
         $page = 1;
         do {
             $orders = $wc->fetchOrders($page, 50, $after);
@@ -67,9 +68,22 @@ class SyncWooCommerce extends Command
                         ->where('source_id', (string) ($item['product_id'] ?? ''))
                         ->first();
 
+                    $size = null;
+                    foreach ($item['meta_data'] ?? [] as $meta) {
+                        $key = strtolower($meta['key'] ?? '');
+                        if ($key === 'talla' || $key === 'pa_talla' || $key === 'attribute_pa_talla' || $key === 'attribute_talla') {
+                            $size = is_array($meta['value']) ? json_encode($meta['value']) : (string) $meta['value'];
+                            break;
+                        }
+                        if ($size === null && str_contains($key, 'talla')) {
+                            $size = is_array($meta['value']) ? json_encode($meta['value']) : (string) $meta['value'];
+                        }
+                    }
+
                     Sale::create([
                         'order_id' => $order->id,
                         'product_id' => $product?->id,
+                        'size' => $size,
                         'quantity' => (int) ($item['quantity'] ?? 1),
                         'unit_price' => (float) ($item['price'] ?? 0),
                         'total' => (float) ($item['total'] ?? 0),

@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Storage;
 
 class SyncMercadoLibre extends Command
 {
-    protected $signature = 'sync:mercadolibre {--offset=0} {--limit=50}';
+    protected $signature = 'sync:mercadolibre {--offset=0} {--limit=50} {--after= : ISO8601 date to fetch orders from}';
     protected $description = 'Sync orders and labels from Mercado Libre';
 
     public function handle(MercadoLibreService $ml)
@@ -27,9 +27,11 @@ class SyncMercadoLibre extends Command
         $this->info('Syncing Mercado Libre orders...');
         $offset = (int) $this->option('offset');
         $limit = (int) $this->option('limit');
+        $after = $this->option('after') ?? now()->subDays(3)->toIso8601String();
+        $this->info("Fetching orders after: {$after}");
 
         do {
-            $data = $ml->searchOrders($sellerId, $offset, $limit);
+            $data = $ml->searchOrders($sellerId, $offset, $limit, $after);
             $results = $data['results'] ?? [];
 
             foreach ($results as $o) {
@@ -76,6 +78,10 @@ class SyncMercadoLibre extends Command
                 if ($shipmentId) {
                     $pdfPath = "mercadolibre/labels/{$shipmentId}.pdf";
                     $pdfBinary = null;
+                    $shipment = $ml->getShipment($shipmentId);
+                    $logisticType = $shipment['logistic_type'] ?? null;
+                    $shipmentStatus = $shipment['status'] ?? null;
+                    $shipmentSubstatus = $shipment['substatus'] ?? null;
 
                     if (!Storage::disk('local')->exists($pdfPath)) {
                         $pdfBinary = $ml->getShipmentLabel($shipmentId);
@@ -84,16 +90,31 @@ class SyncMercadoLibre extends Command
                         }
                     }
 
-                    if (Storage::disk('local')->exists($pdfPath)) {
-                        MlPdf::updateOrCreate(
-                            ['platform_shipment_id' => (string) $shipmentId],
-                            [
-                                'order_id' => $order->id,
-                                'pdf_url' => null,
-                                'pdf_path' => $pdfPath,
-                                'downloaded_at' => now(),
-                            ]
-                        );
+                    $storedPdfPath = Storage::disk('local')->exists($pdfPath) ? $pdfPath : null;
+
+                    $latestHistory = MlPdf::query()
+                        ->where('platform_shipment_id', (string) $shipmentId)
+                        ->orderByDesc('id')
+                        ->first();
+
+                    $hasStatusChanged = !$latestHistory
+                        || $latestHistory->order_id !== $order->id
+                        || $latestHistory->logistic_type !== $logisticType
+                        || $latestHistory->shipment_status !== $shipmentStatus
+                        || $latestHistory->shipment_substatus !== $shipmentSubstatus
+                        || $latestHistory->pdf_path !== $storedPdfPath;
+
+                    if ($hasStatusChanged) {
+                        MlPdf::create([
+                            'order_id' => $order->id,
+                            'platform_shipment_id' => (string) $shipmentId,
+                            'logistic_type' => $logisticType,
+                            'shipment_status' => $shipmentStatus,
+                            'shipment_substatus' => $shipmentSubstatus,
+                            'pdf_url' => null,
+                            'pdf_path' => $storedPdfPath,
+                            'downloaded_at' => $storedPdfPath ? now() : null,
+                        ]);
                     }
                 }
             }
