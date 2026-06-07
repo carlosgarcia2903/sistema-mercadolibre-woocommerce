@@ -47,14 +47,80 @@ class ReportsController extends Controller
         ]);
     }
 
-    public function platformSummary()
+    public function platformSummary(Request $request)
     {
-        $summary = Order::query()
-            ->selectRaw('platform, COUNT(*) as orders_count, SUM(total) as total_sales')
-            ->groupBy('platform')
+        $tab = $request->query('tab', 'woocommerce');
+        $platform = $tab === 'mercadolibre' ? 'mercadolibre' : 'woocommerce';
+
+        $rows = Order::query()
+            ->where('platform', $platform)
+            ->select(['platform', 'total', 'raw_json', 'ordered_at', 'created_at'])
             ->get();
 
+        $summary = $rows
+            ->groupBy(function ($order) {
+                $date = $order->ordered_at ?? $order->created_at;
+                return ($date ? $date->format('Y-m') : now()->format('Y-m')) . '|' . $order->platform;
+            })
+            ->map(function ($group, $key) {
+                [$period, $platform] = explode('|', $key, 2);
+
+                $ordersCount = $group->count();
+                $totalSales = (float) $group->sum('total');
+
+                $receivedAmount = null;
+                if ($platform === 'mercadolibre') {
+                    $receivedAmount = (float) $group->sum(function ($order) {
+                        $raw = $order->raw_json;
+                        if (!is_array($raw)) {
+                            return 0;
+                        }
+
+                        $paidAmount = (float) ($raw['paid_amount'] ?? 0);
+                        $shippingCost = (float) ($raw['shipping_cost'] ?? 0);
+                        $saleFee = collect($raw['order_items'] ?? [])
+                            ->sum(fn ($item) => (float) ($item['sale_fee'] ?? 0));
+
+                        return $paidAmount - $saleFee - $shippingCost;
+                    });
+                }
+
+                return [
+                    'period' => $period,
+                    'platform' => $platform,
+                    'orders_count' => $ordersCount,
+                    'total_sales' => round($totalSales, 2),
+                    'received_amount' => $receivedAmount !== null ? round($receivedAmount, 2) : null,
+                ];
+            })
+            ->values()
+            ->sortBy([
+                ['period', 'desc'],
+                ['platform', 'asc'],
+            ])
+            ->values()
+            ->map(function ($row) {
+                return [
+                    'period' => $row['period'],
+                    'platform' => $row['platform'],
+                    'orders_count' => (int) $row['orders_count'],
+                    'total_sales' => (float) $row['total_sales'],
+                    'received_amount' => $row['received_amount'] !== null ? (float) $row['received_amount'] : null,
+                ];
+            });
+
+        $summary = $summary->map(function ($row) {
+            return [
+                'period' => $row['period'],
+                'platform' => $row['platform'],
+                'orders_count' => (int) $row['orders_count'],
+                'total_sales' => (float) $row['total_sales'],
+                'received_amount' => $row['received_amount'] !== null ? (float) $row['received_amount'] : null,
+            ];
+        });
+
         return Inertia::render('Reports/PlatformSummary', [
+            'tab' => $tab,
             'summary' => $summary,
         ]);
     }

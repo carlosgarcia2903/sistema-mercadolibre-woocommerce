@@ -32,4 +32,9 @@ class Order extends Model
     {
         return $this->hasMany(MlPdf::class);
     }
+
+    public function latestMlPdf()
+    {
+        return $this->hasOne(MlPdf::class)->latestOfMany('id');
+    }
 }

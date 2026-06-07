@@ -9,6 +9,9 @@ class MlPdf extends Model
     protected $fillable = [
         'order_id',
         'platform_shipment_id',
+        'logistic_type',
+        'shipment_status',
+        'shipment_substatus',
         'pdf_url',
         'pdf_path',
         'downloaded_at',

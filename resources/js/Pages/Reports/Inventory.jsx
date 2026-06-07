@@ -7,11 +7,11 @@ export default function Inventory({ auth, products }) {
             <Head title="Inventario" />
             <div className="py-6">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
-                    <div className="bg-white overflow-hidden shadow-sm sm:rounded-lg p-6">
+                    <div className="bg-white dark:bg-slate-900 overflow-hidden shadow-sm sm:rounded-lg p-6 border border-transparent dark:border-slate-800">
                         <h1 className="text-xl font-semibold mb-4">Inventario (stock)</h1>
                         <table className="min-w-full text-sm">
                             <thead>
-                                <tr className="text-left border-b">
+                                <tr className="text-left border-b border-gray-200 dark:border-slate-800 text-gray-500 dark:text-gray-400">
                                     <th className="py-2 pr-4">SKU</th>
                                     <th className="py-2 pr-4">Nombre</th>
                                     <th className="py-2 pr-4">Stock</th>
@@ -20,7 +20,7 @@ export default function Inventory({ auth, products }) {
                             </thead>
                             <tbody>
                                 {products.data.map((p) => (
-                                    <tr key={p.id} className="border-b">
+                                    <tr key={p.id} className="border-b border-gray-200 dark:border-slate-800">
                                         <td className="py-2 pr-4">{p.sku || '-'}</td>
                                         <td className="py-2 pr-4">{p.name}</td>
                                         <td className="py-2 pr-4">{p.stock ?? '-'}</td>
@@ -35,7 +35,9 @@ export default function Inventory({ auth, products }) {
                                     key={i}
                                     href={link.url || '#'}
                                     className={`px-2 py-1 text-sm rounded ${
-                                        link.active ? 'bg-gray-900 text-white' : 'bg-gray-100'
+                                        link.active
+                                            ? 'bg-gray-900 text-white dark:bg-indigo-500'
+                                            : 'bg-gray-100 dark:bg-slate-800 dark:text-gray-200'
                                     } ${!link.url ? 'opacity-50 pointer-events-none' : ''}`}
                                     dangerouslySetInnerHTML={{ __html: link.label }}
                                 />
