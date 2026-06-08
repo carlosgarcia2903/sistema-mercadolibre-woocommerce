@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Mail\NuevasOrdenesMl;
 use App\Models\MlPdf;
 use App\Models\Order;
 use App\Models\Product;
@@ -9,6 +10,7 @@ use App\Models\Sale;
 use App\Services\MercadoLibreService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 
 class SyncMercadoLibre extends Command
@@ -26,61 +28,81 @@ class SyncMercadoLibre extends Command
 
         $this->info('Syncing Mercado Libre orders...');
         $offset = (int) $this->option('offset');
-        $limit = (int) $this->option('limit');
-        $after = $this->option('after') ?? now()->subDays(3)->toIso8601String();
+        $limit  = (int) $this->option('limit');
+        $after  = $this->option('after') ?? now()->subDays(3)->toIso8601String();
         $this->info("Fetching orders after: {$after}");
 
+        // Órdenes que son nuevas en esta ejecución (para el correo)
+        $ordenesNuevas = [];
+
         do {
-            $data = $ml->searchOrders($sellerId, $offset, $limit, $after);
+            $data    = $ml->searchOrders($sellerId, $offset, $limit, $after);
             $results = $data['results'] ?? [];
 
             foreach ($results as $o) {
+                $esNueva = !Order::where('platform', 'mercadolibre')
+                    ->where('platform_order_id', (string) $o['id'])
+                    ->exists();
+
                 $order = Order::updateOrCreate(
                     ['platform' => 'mercadolibre', 'platform_order_id' => (string) $o['id']],
                     [
-                        'status' => $o['status'] ?? null,
-                        'total' => (float) ($o['total_amount'] ?? 0),
-                        'currency' => $o['currency_id'] ?? 'CLP',
-                        'ordered_at' => isset($o['date_created']) ? Carbon::parse($o['date_created']) : null,
-                        'customer_name' => $o['buyer']['nickname'] ?? null,
+                        'status'         => $o['status'] ?? null,
+                        'total'          => (float) ($o['total_amount'] ?? 0),
+                        'currency'       => $o['currency_id'] ?? 'CLP',
+                        'ordered_at'     => isset($o['date_created']) ? Carbon::parse($o['date_created']) : null,
+                        'customer_name'  => $o['buyer']['nickname'] ?? null,
                         'customer_email' => $o['buyer']['email'] ?? null,
-                        'raw_json' => $o,
+                        'raw_json'       => $o,
                     ]
                 );
 
                 $order->sales()->delete();
+                $itemsParaCorreo = [];
+
                 foreach ($o['order_items'] ?? [] as $item) {
-                    $p = $item['item'] ?? [];
+                    $p       = $item['item'] ?? [];
                     $product = null;
                     if (!empty($p['id'])) {
                         $product = Product::updateOrCreate(
                             ['source' => 'mercadolibre', 'source_id' => (string) $p['id']],
                             [
-                                'sku' => $p['seller_custom_field'] ?? null,
-                                'name' => $p['title'] ?? 'Sin nombre',
+                                'sku'         => $p['seller_custom_field'] ?? null,
+                                'name'        => $p['title'] ?? 'Sin nombre',
                                 'description' => null,
-                                'price' => (float) ($p['price'] ?? 0),
-                                'stock' => null,
+                                'price'       => (float) ($p['price'] ?? 0),
+                                'stock'       => null,
                             ]
                         );
                     }
 
                     Sale::create([
-                        'order_id' => $order->id,
+                        'order_id'   => $order->id,
                         'product_id' => $product?->id,
-                        'quantity' => (int) ($item['quantity'] ?? 1),
+                        'quantity'   => (int) ($item['quantity'] ?? 1),
                         'unit_price' => (float) ($item['unit_price'] ?? 0),
-                        'total' => (float) ($item['unit_price'] ?? 0) * (int) ($item['quantity'] ?? 1),
+                        'total'      => (float) ($item['unit_price'] ?? 0) * (int) ($item['quantity'] ?? 1),
                     ]);
+
+                    $itemsParaCorreo[] = [
+                        'name'       => $p['title'] ?? 'Sin nombre',
+                        'size'       => null,
+                        'quantity'   => (int) ($item['quantity'] ?? 1),
+                        'unit_price' => (float) ($item['unit_price'] ?? 0),
+                        'total'      => (float) ($item['unit_price'] ?? 0) * (int) ($item['quantity'] ?? 1),
+                    ];
                 }
 
-                $shipmentId = $o['shipping']['id'] ?? null;
+                // --- Envío / etiqueta ---
+                $shipmentId   = $o['shipping']['id'] ?? null;
+                $logisticType = null;
+                $pdfPath      = null;
+
                 if ($shipmentId) {
-                    $pdfPath = "mercadolibre/labels/{$shipmentId}.pdf";
-                    $pdfBinary = null;
+                    $pdfPath  = "mercadolibre/labels/{$shipmentId}.pdf";
                     $shipment = $ml->getShipment($shipmentId);
-                    $logisticType = $shipment['logistic_type'] ?? null;
-                    $shipmentStatus = $shipment['status'] ?? null;
+                    $logisticType      = $shipment['logistic_type'] ?? null;
+                    $shipmentStatus    = $shipment['status'] ?? null;
                     $shipmentSubstatus = $shipment['substatus'] ?? null;
 
                     if (!Storage::disk('local')->exists($pdfPath)) {
@@ -106,21 +128,46 @@ class SyncMercadoLibre extends Command
 
                     if ($hasStatusChanged) {
                         MlPdf::create([
-                            'order_id' => $order->id,
+                            'order_id'             => $order->id,
                             'platform_shipment_id' => (string) $shipmentId,
-                            'logistic_type' => $logisticType,
-                            'shipment_status' => $shipmentStatus,
-                            'shipment_substatus' => $shipmentSubstatus,
-                            'pdf_url' => null,
-                            'pdf_path' => $storedPdfPath,
-                            'downloaded_at' => $storedPdfPath ? now() : null,
+                            'logistic_type'        => $logisticType,
+                            'shipment_status'      => $shipmentStatus,
+                            'shipment_substatus'   => $shipmentSubstatus,
+                            'pdf_url'              => null,
+                            'pdf_path'             => $storedPdfPath,
+                            'downloaded_at'        => $storedPdfPath ? now() : null,
                         ]);
                     }
+
+                    $pdfPath = $storedPdfPath;
+                }
+
+                // Acumular solo órdenes verdaderamente nuevas
+                if ($esNueva) {
+                    $ordenesNuevas[] = [
+                        'order_id'     => $o['id'],
+                        'customer'     => $o['buyer']['nickname'] ?? null,
+                        'status'       => $o['status'] ?? null,
+                        'total'        => (float) ($o['total_amount'] ?? 0),
+                        'logistic_type' => $logisticType,
+                        'pdf_path'     => $pdfPath,
+                        'items'        => $itemsParaCorreo,
+                    ];
                 }
             }
 
             $offset += $limit;
         } while (!empty($results));
+
+        // Enviar correo solo si hay órdenes nuevas
+        if (!empty($ordenesNuevas)) {
+            $this->info('Enviando correo con ' . count($ordenesNuevas) . ' orden(es) nueva(s)...');
+            Mail::to('carlosgarcia.2903@gmail.com')
+                ->send(new NuevasOrdenesMl($ordenesNuevas));
+            $this->info('Correo enviado.');
+        } else {
+            $this->info('Sin órdenes nuevas, no se envía correo.');
+        }
 
         $this->info('Mercado Libre sync complete.');
         return Command::SUCCESS;
