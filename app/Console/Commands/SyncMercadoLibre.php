@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Mail\EtiquetaDisponibleMl;
 use App\Mail\NuevasOrdenesMl;
 use App\Models\MlPdf;
 use App\Models\Order;
@@ -119,6 +120,11 @@ class SyncMercadoLibre extends Command
                         ->orderByDesc('id')
                         ->first();
 
+                    // La etiqueta acaba de habilitarse (antes no existía, ahora sí)
+                    $etiquetaRecienDisponible = $latestHistory
+                        && empty($latestHistory->pdf_path)
+                        && !empty($storedPdfPath);
+
                     $hasStatusChanged = !$latestHistory
                         || $latestHistory->order_id !== $order->id
                         || $latestHistory->logistic_type !== $logisticType
@@ -140,21 +146,41 @@ class SyncMercadoLibre extends Command
                     }
 
                     $pdfPath = $storedPdfPath;
+
+                    // La etiqueta se acaba de habilitar en una orden que ya conocíamos
+                    if ($etiquetaRecienDisponible && !$esNueva) {
+                        try {
+                            $this->info("Etiqueta recién disponible para orden #{$o['id']}, enviando correo...");
+                            Mail::to('carlosgarcia.2903@gmail.com')
+                                ->send(new EtiquetaDisponibleMl([
+                                    'order_id'      => $o['id'],
+                                    'customer'      => $o['buyer']['nickname'] ?? null,
+                                    'logistic_type' => $logisticType,
+                                    'pdf_path'      => $pdfPath,
+                                ]));
+                        } catch (\Throwable $e) {
+                            $this->error("No se pudo enviar correo de etiqueta de orden #{$o['id']}: " . $e->getMessage());
+                        }
+                    }
                 }
 
                 // Enviar un correo por cada orden nueva
                 if ($esNueva) {
-                    $this->info("Enviando correo para orden #{$o['id']}...");
-                    Mail::to('carlosgarcia.2903@gmail.com')
-                        ->send(new NuevasOrdenesMl([[
-                            'order_id'      => $o['id'],
-                            'customer'      => $o['buyer']['nickname'] ?? null,
-                            'status'        => $o['status'] ?? null,
-                            'total'         => (float) ($o['total_amount'] ?? 0),
-                            'logistic_type' => $logisticType,
-                            'pdf_path'      => $pdfPath,
-                            'items'         => $itemsParaCorreo,
-                        ]]));
+                    try {
+                        $this->info("Enviando correo para orden #{$o['id']}...");
+                        Mail::to('carlosgarcia.2903@gmail.com')
+                            ->send(new NuevasOrdenesMl([[
+                                'order_id'      => $o['id'],
+                                'customer'      => $o['buyer']['nickname'] ?? null,
+                                'status'        => $o['status'] ?? null,
+                                'total'         => (float) ($o['total_amount'] ?? 0),
+                                'logistic_type' => $logisticType,
+                                'pdf_path'      => $pdfPath,
+                                'items'         => $itemsParaCorreo,
+                            ]]));
+                    } catch (\Throwable $e) {
+                        $this->error("No se pudo enviar correo de orden #{$o['id']}: " . $e->getMessage());
+                    }
                     $ordenesNuevas[] = $o['id'];
                 }
             }

@@ -100,9 +100,13 @@ class SyncWooCommerce extends Command
 
                 if ($esNueva) {
                     $nuevas++;
-                    $this->info("Enviando correo para orden #{$o['id']}...");
-                    Mail::to('carlosgarcia.2903@gmail.com')
-                        ->send(new NuevaOrdenWooCommerce($o));
+                    try {
+                        $this->info("Enviando correo para orden #{$o['id']}...");
+                        Mail::to('carlosgarcia.2903@gmail.com')
+                            ->send(new NuevaOrdenWooCommerce($o));
+                    } catch (\Throwable $e) {
+                        $this->error("No se pudo enviar correo de orden #{$o['id']}: " . $e->getMessage());
+                    }
                 }
             }
 
