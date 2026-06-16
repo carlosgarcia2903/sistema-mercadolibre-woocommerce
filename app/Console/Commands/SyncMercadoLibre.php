@@ -29,7 +29,7 @@ class SyncMercadoLibre extends Command
         $this->info('Syncing Mercado Libre orders...');
         $offset = (int) $this->option('offset');
         $limit  = (int) $this->option('limit');
-        $after  = $this->option('after') ?? now()->subDays(3)->toIso8601String();
+        $after  = $this->option('after') ?? now()->subDays(1)->startOfDay()->toIso8601ZuluString();
         $this->info("Fetching orders after: {$after}");
 
         // Órdenes que son nuevas en esta ejecución (para el correo)
@@ -142,29 +142,28 @@ class SyncMercadoLibre extends Command
                     $pdfPath = $storedPdfPath;
                 }
 
-                // Acumular solo órdenes verdaderamente nuevas
+                // Enviar un correo por cada orden nueva
                 if ($esNueva) {
-                    $ordenesNuevas[] = [
-                        'order_id'     => $o['id'],
-                        'customer'     => $o['buyer']['nickname'] ?? null,
-                        'status'       => $o['status'] ?? null,
-                        'total'        => (float) ($o['total_amount'] ?? 0),
-                        'logistic_type' => $logisticType,
-                        'pdf_path'     => $pdfPath,
-                        'items'        => $itemsParaCorreo,
-                    ];
+                    $this->info("Enviando correo para orden #{$o['id']}...");
+                    Mail::to('carlosgarcia.2903@gmail.com')
+                        ->send(new NuevasOrdenesMl([[
+                            'order_id'      => $o['id'],
+                            'customer'      => $o['buyer']['nickname'] ?? null,
+                            'status'        => $o['status'] ?? null,
+                            'total'         => (float) ($o['total_amount'] ?? 0),
+                            'logistic_type' => $logisticType,
+                            'pdf_path'      => $pdfPath,
+                            'items'         => $itemsParaCorreo,
+                        ]]));
+                    $ordenesNuevas[] = $o['id'];
                 }
             }
 
             $offset += $limit;
         } while (!empty($results));
 
-        // Enviar correo solo si hay órdenes nuevas
         if (!empty($ordenesNuevas)) {
-            $this->info('Enviando correo con ' . count($ordenesNuevas) . ' orden(es) nueva(s)...');
-            Mail::to('carlosgarcia.2903@gmail.com')
-                ->send(new NuevasOrdenesMl($ordenesNuevas));
-            $this->info('Correo enviado.');
+            $this->info('Correo enviado. ' . count($ordenesNuevas) . ' orden(es) nueva(s).');
         } else {
             $this->info('Sin órdenes nuevas, no se envía correo.');
         }

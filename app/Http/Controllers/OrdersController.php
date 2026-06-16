@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\MlPdf;
 use App\Models\Order;
+use App\Services\WooCommerceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 use Inertia\Inertia;
@@ -102,9 +103,13 @@ class OrdersController extends Controller
                     'currency' => $order->currency,
                     'ordered_at' => optional($order->ordered_at)->toDateTimeString(),
                     'customer_name' => $order->customer_name,
+                    'raw' => $order->platform === 'woocommerce' ? $order->raw_json : null,
                     'delivery_status' => $order->latestMlPdf?->shipment_status,
                     'delivery_substatus' => $order->latestMlPdf?->shipment_substatus,
                     'delivery_logistic_type' => $order->latestMlPdf?->logistic_type,
+                    'pdf_download_url' => $order->latestMlPdf?->pdf_path
+                        ? route('mlpdfs.download', $order->latestMlPdf)
+                        : null,
                     'total_received' => $calculateMlNetReceived($order),
                     'items' => $order->sales->map(function ($sale) {
                         return [
@@ -151,8 +156,25 @@ class OrdersController extends Controller
         try {
             if ($platform === 'woocommerce') {
                 Artisan::call('sync:woocommerce');
+                $output = Artisan::output();
+                return back()->with('success', 'WooCommerce sincronizado correctamente.');
             } elseif ($platform === 'mercadolibre') {
                 Artisan::call('sync:mercadolibre');
+                $output = Artisan::output();
+
+                // Detectar si se envió correo y cuántas órdenes nuevas
+                $emailEnviado = str_contains($output, 'Correo enviado');
+                preg_match('/(\d+) orden\(es\) nueva\(s\)/', $output, $matches);
+                $cantidadNuevas = $matches[1] ?? 0;
+
+                $mensaje = 'MercadoLibre sincronizado correctamente.';
+                if ($emailEnviado && $cantidadNuevas > 0) {
+                    $mensaje .= " ✉️ Se encontraron {$cantidadNuevas} orden(es) nueva(s) — correo enviado a carlosgarcia.2903@gmail.com.";
+                } else {
+                    $mensaje .= ' Sin órdenes nuevas, no se envió correo.';
+                }
+
+                return back()->with('success', $mensaje);
             } else {
                 return back()->with('error', 'Plataforma inválida.');
             }
@@ -162,6 +184,27 @@ class OrdersController extends Controller
             return back()->with('error', 'Error al sincronizar ' . $platform . ': ' . $e->getMessage());
         }
 
-        return back()->with('success', 'Sincronización de ' . $platform . ' completada.');
+        return back()->with('success', 'Sincronización completada.');
+    }
+
+    public function updateStatus(Request $request, Order $order, WooCommerceService $wc)
+    {
+        $request->validate(['status' => 'required|string']);
+
+        if ($order->platform !== 'woocommerce') {
+            return response()->json(['error' => 'Solo se pueden actualizar órdenes de WooCommerce.'], 422);
+        }
+
+        $newStatus = $request->input('status');
+
+        try {
+            $wc->updateOrderStatus($order->platform_order_id, $newStatus);
+        } catch (\Throwable $e) {
+            return response()->json(['error' => 'No se pudo actualizar en WooCommerce: ' . $e->getMessage()], 500);
+        }
+
+        $order->update(['status' => $newStatus]);
+
+        return response()->json(['status' => $newStatus]);
     }
 }

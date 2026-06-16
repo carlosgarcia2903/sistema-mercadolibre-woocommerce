@@ -34,6 +34,17 @@ class WooCommerceService
         return $response->json();
     }
 
+    public function updateOrderStatus(string|int $orderId, string $status): array
+    {
+        $response = $this->client()
+            ->put($this->baseUrl . '/wp-json/wc/v3/orders/' . $orderId, [
+                'status' => $status,
+            ]);
+
+        $response->throw();
+        return $response->json();
+    }
+
     public function fetchOrders(int $page = 1, int $perPage = 50, ?string $after = null): array
     {
         $params = [

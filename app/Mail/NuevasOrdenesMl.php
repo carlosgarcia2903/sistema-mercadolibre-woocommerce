@@ -21,10 +21,14 @@ class NuevasOrdenesMl extends Mailable
 
     public function envelope(): Envelope
     {
-        $cantidad = count($this->ordenes);
-        return new Envelope(
-            subject: "🛒 {$cantidad} orden(es) nueva(s) de MercadoLibre",
-        );
+        $orden    = $this->ordenes[0];
+        $conPdf   = !empty($orden['pdf_path']) && Storage::disk('local')->exists($orden['pdf_path']);
+        $tipo     = ($orden['logistic_type'] === 'self_service') ? 'Flex' : 'Envío ML';
+        $subject  = "🛒 Nueva orden MercadoLibre #{$orden['order_id']} — {$tipo}";
+        if ($conPdf) {
+            $subject .= ' 📎';
+        }
+        return new Envelope(subject: $subject);
     }
 
     public function content(): Content

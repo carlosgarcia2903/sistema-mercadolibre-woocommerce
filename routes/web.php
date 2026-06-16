@@ -89,6 +89,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/products', [ProductsController::class, 'index'])->name('products.index');
     Route::get('/orders', [OrdersController::class, 'index'])->name('orders.index');
     Route::post('/orders/sync', [OrdersController::class, 'sync'])->name('orders.sync');
+    Route::patch('/orders/{order}/status', [OrdersController::class, 'updateStatus'])->name('orders.updateStatus');
     Route::get('/ml-pdfs', [MlPdfsController::class, 'index'])->name('mlpdfs.index');
     Route::get('/ml-pdfs/{mlPdf}/download', [MlPdfsController::class, 'download'])->name('mlpdfs.download');
     Route::get('/reports/inventory', [ReportsController::class, 'inventory'])->name('reports.inventory');
