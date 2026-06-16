@@ -1,59 +1,145 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Sistema de Gestión E-commerce — WooCommerce + MercadoLibre
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Sistema web privado para la gestión centralizada de ventas en múltiples plataformas. Permite sincronizar, visualizar y administrar órdenes de **WooCommerce** y **MercadoLibre** desde un único panel, con notificaciones automáticas por correo electrónico y generación de documentos PDF.
 
-## About Laravel
+## Tecnologías
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- **Backend:** Laravel 12 (PHP)
+- **Frontend:** React 18 + Inertia.js
+- **Base de datos:** MySQL
+- **Estilos:** Tailwind CSS
+- **PDF:** barryvdh/laravel-dompdf
+- **Correo:** Brevo SMTP
+- **Assets:** Vite
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Funcionalidades principales
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+### Sincronización de órdenes
+- Sincronización incremental automática con WooCommerce REST API y MercadoLibre API
+- Cron jobs configurables (por defecto: cada hora vía `schedule:run`)
+- Botones de sincronización manual desde el panel
+- Detección de órdenes nuevas para evitar duplicados
 
-## Learning Laravel
+### Panel de órdenes
+- Tabla unificada con órdenes de WooCommerce y MercadoLibre
+- Vista detallada por orden con datos de cliente, productos, envío y totales
+- Cambio de estado de órdenes WooCommerce directamente desde el panel (sincronizado con la API)
+- Descarga de etiquetas de envío PDF de MercadoLibre
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+### Notificaciones por correo
+- Correo automático al detectar una nueva orden de WooCommerce (con PDF de la orden adjunto)
+- Correo automático al detectar una nueva orden de MercadoLibre (con etiqueta de envío adjunta si está disponible)
+- Correo de seguimiento cuando una etiqueta de MercadoLibre se habilita días después de la compra
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+### Generación de PDF
+- PDF de orden WooCommerce con datos de facturación, envío o retiro local, productos, tallas y totales
+- Descarga de etiquetas de envío MercadoLibre almacenadas localmente
 
-## Laravel Sponsors
+## Estructura del proyecto
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+```
+app/
+├── Console/Commands/        # Comandos Artisan: SyncWooCommerce, SyncMercadoLibre, RefreshMlToken
+├── Http/Controllers/        # OrdersController, MercadoLibreController
+├── Mail/                    # Mailables: NuevaOrdenWooCommerce, NuevasOrdenesMl, EtiquetaDisponibleMl
+├── Models/                  # Order, Sale, Product, MlPdf
+├── Services/                # WooCommerceService, MercadoLibreService
+resources/
+├── js/Pages/Orders/         # Panel principal de órdenes (React + Inertia)
+├── views/emails/            # Plantillas HTML de correos
+├── views/pdfs/              # Plantilla PDF de órdenes WooCommerce
+routes/
+├── web.php                  # Rutas web
+├── console.php              # Cron schedule
+```
 
-### Premium Partners
+## Instalación
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+### Requisitos
+- PHP 8.2+
+- Node.js 18+
+- Composer
+- MySQL
 
-## Contributing
+### Pasos
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+```bash
+# 1. Clonar el repositorio
+git clone https://github.com/carlosgarcia2903/sistema-mercadolibre-woocommerce.git
+cd sistema-mercadolibre-woocommerce
 
-## Code of Conduct
+# 2. Instalar dependencias PHP
+composer install
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+# 3. Instalar dependencias JS y compilar assets
+npm install && npm run build
 
-## Security Vulnerabilities
+# 4. Configurar entorno
+cp .env.production.example .env
+# Editar .env con tus credenciales
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+# 5. Generar clave de aplicación
+php artisan key:generate
 
-## License
+# 6. Ejecutar migraciones
+php artisan migrate
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+# 7. Crear enlace de storage
+php artisan storage:link
+```
+
+## Configuración del entorno
+
+Copia `.env.production.example` a `.env` y completa las siguientes variables:
+
+```env
+# Base de datos
+DB_DATABASE=nombre_base_de_datos
+DB_USERNAME=usuario
+DB_PASSWORD=contraseña
+
+# Correo (Brevo SMTP)
+MAIL_USERNAME=tu_usuario@smtp-brevo.com
+MAIL_PASSWORD=tu_clave_smtp
+
+# WooCommerce
+WOOCOMMERCE_URL=https://tutienda.cl
+WOOCOMMERCE_KEY=ck_xxxx
+WOOCOMMERCE_SECRET=cs_xxxx
+
+# MercadoLibre
+MERCADOLIBRE_CLIENT_ID=
+MERCADOLIBRE_CLIENT_SECRET=
+MERCADOLIBRE_USER_ID=
+MERCADOLIBRE_REDIRECT_URI=https://tudominio.cl/ml/callback
+```
+
+## Sincronización manual
+
+```bash
+# Sincronizar WooCommerce (últimas 24 horas)
+php artisan sync:woocommerce
+
+# Sincronizar desde una fecha específica
+php artisan sync:woocommerce --after=2026-05-01T00:00:00.000Z
+
+# Sincronizar MercadoLibre
+php artisan sync:mercadolibre
+
+# Renovar token de MercadoLibre
+php artisan ml:refresh-token
+```
+
+## Cron en producción (cPanel)
+
+En cPanel → Cron Jobs, agrega una tarea cada hora:
+
+```
+0 * * * * cd /ruta/del/proyecto && php artisan schedule:run >> /dev/null 2>&1
+```
+
+El schedule ejecutará las sincronizaciones a las horas configuradas en `routes/console.php`.
+
+## Licencia
+
+Uso privado — todos los derechos reservados.
