@@ -12,9 +12,13 @@ class RefreshMercadoLibreToken extends Command
 
     public function handle(MercadoLibreService $ml)
     {
-        $ml->refreshAccessToken(true);
+        try {
+            $ml->refreshAccessToken(true);
+            $this->info('Token refreshed.');
+        } catch (\Throwable $e) {
+            $this->error('Token refresh failed: ' . $e->getMessage());
+        }
 
-        $this->info('Token refreshed.');
         return Command::SUCCESS;
     }
 }
