@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Response;
 use Inertia\Inertia;
@@ -27,7 +28,7 @@ class ReportsController extends Controller
             });
         }
 
-        $products = $query->paginate(50)->withQueryString();
+        $products = $query->with('variants')->paginate(50)->withQueryString();
 
         return Inertia::render('Reports/Inventory', [
             'tab'      => $tab,
