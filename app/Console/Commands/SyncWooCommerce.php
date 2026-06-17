@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Mail\NuevaOrdenWooCommerce;
 use App\Models\Order;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\Sale;
 use App\Services\WooCommerceService;
 use Illuminate\Console\Command;
@@ -28,7 +29,7 @@ class SyncWooCommerce extends Command
         do {
             $products = $wc->fetchProducts($page, 50);
             foreach ($products as $p) {
-                Product::updateOrCreate(
+                $product = Product::updateOrCreate(
                     ['source' => 'woocommerce', 'source_id' => (string) $p['id']],
                     [
                         'sku'         => $p['sku'] ?: null,
@@ -38,6 +39,8 @@ class SyncWooCommerce extends Command
                         'stock'       => $p['stock_quantity'] ?? null,
                     ]
                 );
+
+                $this->syncWooVariants($wc, $product, $p);
             }
             $page++;
         } while (!empty($products));
@@ -88,12 +91,16 @@ class SyncWooCommerce extends Command
                         }
                     }
 
+                    $variant = $this->matchWooVariant($product, $item, $size);
+
                     Sale::create([
                         'order_id'   => $order->id,
                         'product_id' => $product?->id,
+                        'variant_id' => $variant?->id,
                         'size'       => $size,
                         'quantity'   => (int) ($item['quantity'] ?? 1),
                         'unit_price' => (float) ($item['price'] ?? 0),
+                        'sale_fee'   => 0, // WooCommerce no cobra comisión por venta
                         'total'      => (float) ($item['total'] ?? 0),
                     ]);
                 }
@@ -121,5 +128,89 @@ class SyncWooCommerce extends Command
 
         $this->info('WooCommerce sync complete.');
         return Command::SUCCESS;
+    }
+
+    /**
+     * Sincroniza las variaciones (tallas) de un producto WooCommerce.
+     * Los productos simples (sin variaciones) generan una sola variante con size null.
+     * El cost_price ingresado manualmente nunca se sobrescribe.
+     */
+    protected function syncWooVariants(WooCommerceService $wc, Product $product, array $p): void
+    {
+        $type = $p['type'] ?? 'simple';
+
+        if ($type !== 'variable') {
+            ProductVariant::updateOrCreate(
+                ['product_id' => $product->id, 'size' => null],
+                [
+                    'variant_source_id' => (string) $p['id'],
+                    'sku'               => $p['sku'] ?: null,
+                    'sale_price'        => (float) ($p['price'] ?? 0),
+                ]
+            );
+            return;
+        }
+
+        $vpage = 1;
+        do {
+            $variations = $wc->fetchProductVariations($p['id'], $vpage, 50);
+            foreach ($variations as $v) {
+                $size = $this->extractSizeFromAttributes($v['attributes'] ?? []);
+
+                ProductVariant::updateOrCreate(
+                    ['product_id' => $product->id, 'size' => $size],
+                    [
+                        'variant_source_id' => (string) ($v['id'] ?? ''),
+                        'sku'               => ($v['sku'] ?? '') ?: null,
+                        'sale_price'        => (float) ($v['price'] ?? 0),
+                    ]
+                );
+            }
+            $vpage++;
+        } while (!empty($variations));
+    }
+
+    /**
+     * Extrae la talla desde el arreglo de atributos de una variación WooCommerce.
+     */
+    protected function extractSizeFromAttributes(array $attributes): ?string
+    {
+        foreach ($attributes as $attr) {
+            $name = strtolower($attr['name'] ?? '');
+            if (str_contains($name, 'talla') || str_contains($name, 'size') || str_contains($name, 'tamaño')) {
+                return ($attr['option'] ?? '') ?: null;
+            }
+        }
+
+        // Si solo hay un atributo, asumimos que es la talla.
+        if (count($attributes) === 1) {
+            return ($attributes[0]['option'] ?? '') ?: null;
+        }
+
+        return null;
+    }
+
+    /**
+     * Busca la variante que corresponde a una línea de pedido, por id de variación o por talla.
+     */
+    protected function matchWooVariant(?Product $product, array $item, ?string $size): ?ProductVariant
+    {
+        if (!$product) {
+            return null;
+        }
+
+        $variationId = $item['variation_id'] ?? null;
+        if ($variationId) {
+            $variant = ProductVariant::where('product_id', $product->id)
+                ->where('variant_source_id', (string) $variationId)
+                ->first();
+            if ($variant) {
+                return $variant;
+            }
+        }
+
+        return ProductVariant::where('product_id', $product->id)
+            ->where('size', $size)
+            ->first();
     }
 }

@@ -48,6 +48,9 @@ export default function AuthenticatedLayout({ header, children }) {
                             <NavLink href={route('orders.index')} active={route().current('orders.index')}>
                                 Órdenes
                             </NavLink>
+                            <NavLink href={route('rentabilidad.index')} active={route().current('rentabilidad.index')}>
+                                Rentabilidad
+                            </NavLink>
                             <NavLink href={route('mlpdfs.index')} active={route().current('mlpdfs.index')}>
                                 PDFs ML
                             </NavLink>
@@ -151,6 +154,9 @@ export default function AuthenticatedLayout({ header, children }) {
                                 </ResponsiveNavLink>
                                 <ResponsiveNavLink href={route('orders.index')} active={route().current('orders.index')}>
                                     Órdenes
+                                </ResponsiveNavLink>
+                                <ResponsiveNavLink href={route('rentabilidad.index')} active={route().current('rentabilidad.index')}>
+                                    Rentabilidad
                                 </ResponsiveNavLink>
                                 <ResponsiveNavLink href={route('mlpdfs.index')} active={route().current('mlpdfs.index')}>
                                     PDFs ML

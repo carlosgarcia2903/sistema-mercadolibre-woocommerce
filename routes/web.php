@@ -5,6 +5,7 @@ use App\Http\Controllers\MlPdfsController;
 use App\Http\Controllers\OrdersController;
 use App\Http\Controllers\ProductsController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\RentabilidadController;
 use App\Http\Controllers\ReportsController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -90,6 +91,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/orders', [OrdersController::class, 'index'])->name('orders.index');
     Route::post('/orders/sync', [OrdersController::class, 'sync'])->name('orders.sync');
     Route::patch('/orders/{order}/status', [OrdersController::class, 'updateStatus'])->name('orders.updateStatus');
+    Route::get('/rentabilidad', [RentabilidadController::class, 'index'])->name('rentabilidad.index');
+    Route::patch('/variants/{variant}/cost', [RentabilidadController::class, 'updateCost'])->name('variants.updateCost');
     Route::get('/ml-pdfs', [MlPdfsController::class, 'index'])->name('mlpdfs.index');
     Route::get('/ml-pdfs/{mlPdf}/download', [MlPdfsController::class, 'download'])->name('mlpdfs.download');
     Route::get('/reports/inventory', [ReportsController::class, 'inventory'])->name('reports.inventory');

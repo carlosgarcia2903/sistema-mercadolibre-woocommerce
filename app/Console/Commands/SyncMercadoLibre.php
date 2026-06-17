@@ -7,6 +7,7 @@ use App\Mail\NuevasOrdenesMl;
 use App\Models\MlPdf;
 use App\Models\Order;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\Sale;
 use App\Services\MercadoLibreService;
 use Illuminate\Console\Command;
@@ -64,6 +65,9 @@ class SyncMercadoLibre extends Command
                 foreach ($o['order_items'] ?? [] as $item) {
                     $p       = $item['item'] ?? [];
                     $product = null;
+                    $variant = null;
+                    $size    = $this->extractMlSize($p);
+
                     if (!empty($p['id'])) {
                         $product = Product::updateOrCreate(
                             ['source' => 'mercadolibre', 'source_id' => (string) $p['id']],
@@ -75,19 +79,34 @@ class SyncMercadoLibre extends Command
                                 'stock'       => null,
                             ]
                         );
+
+                        // El cost_price ingresado manualmente nunca se sobrescribe.
+                        $variant = ProductVariant::updateOrCreate(
+                            ['product_id' => $product->id, 'size' => $size],
+                            [
+                                'variant_source_id' => isset($p['variation_id']) ? (string) $p['variation_id'] : null,
+                                'sku'               => $p['seller_custom_field'] ?? null,
+                                'sale_price'        => (float) ($item['unit_price'] ?? 0),
+                            ]
+                        );
                     }
+
+                    $saleFee = (float) ($item['sale_fee'] ?? 0);
 
                     Sale::create([
                         'order_id'   => $order->id,
                         'product_id' => $product?->id,
+                        'variant_id' => $variant?->id,
+                        'size'       => $size,
                         'quantity'   => (int) ($item['quantity'] ?? 1),
                         'unit_price' => (float) ($item['unit_price'] ?? 0),
+                        'sale_fee'   => $saleFee,
                         'total'      => (float) ($item['unit_price'] ?? 0) * (int) ($item['quantity'] ?? 1),
                     ]);
 
                     $itemsParaCorreo[] = [
                         'name'       => $p['title'] ?? 'Sin nombre',
-                        'size'       => null,
+                        'size'       => $size,
                         'quantity'   => (int) ($item['quantity'] ?? 1),
                         'unit_price' => (float) ($item['unit_price'] ?? 0),
                         'total'      => (float) ($item['unit_price'] ?? 0) * (int) ($item['quantity'] ?? 1),
@@ -196,5 +215,28 @@ class SyncMercadoLibre extends Command
 
         $this->info('Mercado Libre sync complete.');
         return Command::SUCCESS;
+    }
+
+    /**
+     * Extrae la talla desde los atributos de variación de un ítem de MercadoLibre.
+     */
+    protected function extractMlSize(array $item): ?string
+    {
+        foreach ($item['variation_attributes'] ?? [] as $attr) {
+            $name = strtolower($attr['name'] ?? '');
+            $id   = strtolower($attr['id'] ?? '');
+            if (str_contains($name, 'talla') || str_contains($name, 'tamaño')
+                || str_contains($id, 'size') || $id === 'size') {
+                return ($attr['value_name'] ?? '') ?: null;
+            }
+        }
+
+        // Si solo hay un atributo de variación, asumimos que es la talla.
+        $attrs = $item['variation_attributes'] ?? [];
+        if (count($attrs) === 1) {
+            return ($attrs[0]['value_name'] ?? '') ?: null;
+        }
+
+        return null;
     }
 }

@@ -34,6 +34,17 @@ class WooCommerceService
         return $response->json();
     }
 
+    public function fetchProductVariations(int|string $productId, int $page = 1, int $perPage = 50): array
+    {
+        $response = $this->client()->get($this->baseUrl . '/wp-json/wc/v3/products/' . $productId . '/variations', [
+            'page' => $page,
+            'per_page' => $perPage,
+        ]);
+
+        $response->throw();
+        return $response->json();
+    }
+
     public function updateOrderStatus(string|int $orderId, string $status): array
     {
         $response = $this->client()

@@ -56,6 +56,20 @@ class MercadoLibreService
         return $response->json();
     }
 
+    public function getItem(int|string $itemId): array
+    {
+        $response = $this->requestWithAutoRefresh(function () use ($itemId) {
+            return $this->client()->get($this->baseUrl . '/items/' . $itemId);
+        });
+
+        if ($response->status() === 404) {
+            return [];
+        }
+
+        $response->throw();
+        return $response->json();
+    }
+
     public function getShipmentLabel(int|string $shipmentId): ?string
     {
         $response = $this->requestWithAutoRefresh(function () use ($shipmentId) {
