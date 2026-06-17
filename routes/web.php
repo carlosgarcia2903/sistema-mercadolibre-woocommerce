@@ -101,4 +101,17 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
+// Ruta temporal de prueba de correo — eliminar después de verificar
+Route::get('/test-mail-gyc2026', function () {
+    try {
+        \Illuminate\Support\Facades\Mail::raw(
+            'Correo de prueba enviado desde el servidor de producción sistema.gycconfecciones.cl',
+            fn($m) => $m->to('carlosgarcia.2903@gmail.com')->subject('✅ Test correo producción')
+        );
+        return 'Correo enviado correctamente.';
+    } catch (\Throwable $e) {
+        return 'ERROR: ' . $e->getMessage();
+    }
+});
+
 require __DIR__.'/auth.php';
