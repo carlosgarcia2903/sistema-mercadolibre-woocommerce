@@ -30,55 +30,40 @@ class RentabilidadController extends Controller
         }
         $end = (clone $start)->endOfMonth();
 
-        // Ventas válidas del periodo agregadas por variante.
-        $agg = DB::table('sales')
+        // Ventas individuales del periodo (una fila por sale).
+        $sales = DB::table('sales')
             ->join('orders', 'sales.order_id', '=', 'orders.id')
-            ->whereNotNull('sales.variant_id')
+            ->leftJoin('product_variants', 'sales.variant_id', '=', 'product_variants.id')
+            ->leftJoin('products', 'product_variants.product_id', '=', 'products.id')
             ->where('orders.platform', $source)
             ->whereBetween('orders.ordered_at', [$start, $end])
             ->whereNotIn(DB::raw('LOWER(orders.status)'), $this->excludedStatuses)
-            ->groupBy('sales.variant_id')
+            ->orderBy('orders.ordered_at')
             ->select(
-                'sales.variant_id',
-                DB::raw('SUM(sales.quantity) as units'),
-                DB::raw('SUM(sales.unit_price * sales.quantity) as gross_total'),
-                DB::raw('SUM(sales.sale_fee * sales.quantity) as fee_total'),
-                DB::raw('SUM((sales.unit_price - sales.sale_fee) * sales.quantity) as net_total')
+                'orders.ordered_at',
+                'orders.platform_order_id',
+                'products.name as product_name',
+                'product_variants.size',
+                'sales.quantity',
+                'sales.unit_price',
+                'sales.sale_fee',
+                DB::raw('(sales.unit_price - sales.sale_fee) as net_unit'),
+                DB::raw('(sales.unit_price - sales.sale_fee) * sales.quantity as net_total')
             )
-            ->get()
-            ->keyBy('variant_id');
+            ->get();
 
-        // Solo variantes que tienen ventas en el periodo seleccionado.
-        $variantIds = $agg->keys()->filter()->values();
+        $rows = $sales->map(fn ($s) => [
+            'ordered_at'        => $s->ordered_at,
+            'platform_order_id' => $s->platform_order_id,
+            'product_name'      => $s->product_name ?? 'Sin nombre',
+            'size'              => $s->size,
+            'quantity'          => (int) $s->quantity,
+            'unit_price'        => round((float) $s->unit_price),
+            'net_unit'          => round((float) $s->net_unit),
+            'net_total'         => round((float) $s->net_total),
+        ])->values();
 
-        $variants = ProductVariant::query()
-            ->whereIn('id', $variantIds)
-            ->with('product:id,name,source')
-            ->get()
-            ->sortBy([
-                fn ($v) => $v->product->name ?? '',
-                fn ($v) => $v->size ?? '',
-            ])
-            ->values();
-
-        $rows = $variants->map(function (ProductVariant $v) use ($agg, $source) {
-            $a        = $agg->get($v->id);
-            $units    = (int) ($a->units ?? 0);
-            $netTotal = (float) ($a->net_total ?? 0);
-            $netUnit  = $units > 0 ? round($netTotal / $units) : round((float) $v->sale_price);
-
-            return [
-                'id'           => $v->id,
-                'product_name' => $v->product->name ?? 'Sin nombre',
-                'size'         => $v->size,
-                'sale_price'   => round((float) $v->sale_price),
-                'units_sold'   => $units,
-                'net_unit'     => $netUnit,
-                'net_total'    => round($netTotal),
-            ];
-        });
-
-        $unitsTotal = $rows->sum('units_sold');
+        $unitsTotal = $rows->sum('quantity');
         $totalSales = $rows->sum('net_total');
 
         return Inertia::render('Rentabilidad/Index', [

@@ -6,6 +6,12 @@ const fmt = (n) =>
         ? '—'
         : new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(n);
 
+const fmtDate = (d) => {
+    if (!d) return '—';
+    const date = new Date(d);
+    return date.toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' });
+};
+
 export default function Index({ auth, tab, month, rows, summary }) {
     const isMl = tab === 'mercadolibre';
     const tabs = [
@@ -71,29 +77,33 @@ export default function Index({ auth, tab, month, rows, summary }) {
                             <table className="min-w-full text-sm">
                                 <thead>
                                     <tr className="text-left border-b border-gray-200 dark:border-slate-800 text-gray-500 dark:text-gray-400">
+                                        <th className="py-3 px-4">Fecha</th>
+                                        <th className="py-3 px-4">Orden</th>
                                         <th className="py-3 px-4">Producto</th>
                                         <th className="py-3 px-4">Talla</th>
                                         <th className="py-3 px-4 text-right">Precio venta</th>
                                         {isMl && <th className="py-3 px-4 text-right">Neto recibido</th>}
-                                        <th className="py-3 px-4 text-right">Unidades</th>
+                                        <th className="py-3 px-4 text-right">Cant.</th>
                                         <th className="py-3 px-4 text-right">Total</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {rows.length === 0 && (
                                         <tr>
-                                            <td colSpan={isMl ? 6 : 5} className="py-8 text-center text-gray-400">
+                                            <td colSpan={isMl ? 8 : 7} className="py-8 text-center text-gray-400">
                                                 No hay ventas en este período.
                                             </td>
                                         </tr>
                                     )}
-                                    {rows.map((r) => (
-                                        <tr key={r.id} className="border-b border-gray-100 dark:border-slate-800/60 hover:bg-gray-50 dark:hover:bg-slate-800/30">
+                                    {rows.map((r, i) => (
+                                        <tr key={i} className="border-b border-gray-100 dark:border-slate-800/60 hover:bg-gray-50 dark:hover:bg-slate-800/30">
+                                            <td className="py-2 px-4 text-gray-500 whitespace-nowrap">{fmtDate(r.ordered_at)}</td>
+                                            <td className="py-2 px-4 text-gray-400 text-xs">#{r.platform_order_id}</td>
                                             <td className="py-2 px-4">{r.product_name}</td>
                                             <td className="py-2 px-4 text-gray-500">{r.size || '—'}</td>
-                                            <td className="py-2 px-4 text-right">{fmt(r.sale_price)}</td>
+                                            <td className="py-2 px-4 text-right">{fmt(r.unit_price)}</td>
                                             {isMl && <td className="py-2 px-4 text-right">{fmt(r.net_unit)}</td>}
-                                            <td className="py-2 px-4 text-right font-medium">{r.units_sold}</td>
+                                            <td className="py-2 px-4 text-right">{r.quantity}</td>
                                             <td className="py-2 px-4 text-right font-medium">{fmt(r.net_total)}</td>
                                         </tr>
                                     ))}
@@ -101,7 +111,7 @@ export default function Index({ auth, tab, month, rows, summary }) {
                                 {rows.length > 0 && (
                                     <tfoot>
                                         <tr className="border-t-2 border-gray-200 dark:border-slate-700 font-semibold">
-                                            <td colSpan={isMl ? 4 : 3} className="py-2 px-4 text-gray-500">Total</td>
+                                            <td colSpan={isMl ? 6 : 5} className="py-2 px-4 text-gray-500">Total</td>
                                             <td className="py-2 px-4 text-right">{summary.units_total}</td>
                                             <td className="py-2 px-4 text-right">{fmt(summary.total_sales)}</td>
                                         </tr>
