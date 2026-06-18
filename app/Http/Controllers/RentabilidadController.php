@@ -48,8 +48,11 @@ class RentabilidadController extends Controller
             ->get()
             ->keyBy('variant_id');
 
+        // Solo variantes que tienen ventas en el periodo seleccionado.
+        $variantIds = $agg->keys()->filter()->values();
+
         $variants = ProductVariant::query()
-            ->whereHas('product', fn ($q) => $q->where('source', $source))
+            ->whereIn('id', $variantIds)
             ->with('product:id,name,source')
             ->get()
             ->sortBy([
@@ -59,58 +62,32 @@ class RentabilidadController extends Controller
             ->values();
 
         $rows = $variants->map(function (ProductVariant $v) use ($agg, $source) {
-            $a = $agg->get($v->id);
-
+            $a        = $agg->get($v->id);
             $units    = (int) ($a->units ?? 0);
             $netTotal = (float) ($a->net_total ?? 0);
-            $feeTotal = (float) ($a->fee_total ?? 0);
-            $cost     = $v->cost_price !== null ? (float) $v->cost_price : null;
-
-            // Neto unitario: para ML, descuenta la comisión; si no hay ventas usa el precio venta.
-            $netUnit = $units > 0
-                ? $netTotal / $units
-                : ($source === 'mercadolibre' ? null : (float) $v->sale_price);
-
-            $costTotal   = $cost !== null ? $cost * $units : null;
-            $profitTotal = ($cost !== null) ? $netTotal - $costTotal : null;
-            $marginUnit  = ($cost !== null && $netUnit !== null) ? $netUnit - $cost : null;
-            $marginPct   = ($marginUnit !== null && $netUnit > 0) ? ($marginUnit / $netUnit) * 100 : null;
+            $netUnit  = $units > 0 ? round($netTotal / $units) : round((float) $v->sale_price);
 
             return [
-                'id'            => $v->id,
-                'product_name'  => $v->product->name ?? 'Sin nombre',
-                'size'          => $v->size,
-                'sku'           => $v->sku,
-                'sale_price'    => (float) $v->sale_price,
-                'cost_price'    => $cost,
-                'units_sold'    => $units,
-                'net_unit'      => $netUnit !== null ? round($netUnit) : null,
-                'fee_total'     => round($feeTotal),
-                'margin_unit'   => $marginUnit !== null ? round($marginUnit) : null,
-                'margin_pct'    => $marginPct !== null ? round($marginPct, 1) : null,
-                'profit_total'  => $profitTotal !== null ? round($profitTotal) : null,
-                'cost_total'    => $costTotal !== null ? round($costTotal) : null,
+                'id'           => $v->id,
+                'product_name' => $v->product->name ?? 'Sin nombre',
+                'size'         => $v->size,
+                'sale_price'   => round((float) $v->sale_price),
+                'units_sold'   => $units,
+                'net_unit'     => $netUnit,
+                'net_total'    => round($netTotal),
             ];
         });
 
-        // Resumen del periodo.
-        $toPay       = $rows->whereNotNull('cost_total')->sum('cost_total');
-        $totalSales  = $rows->sum(fn ($r) => $r['net_unit'] !== null ? $r['net_unit'] * $r['units_sold'] : 0);
-        $totalProfit = $rows->whereNotNull('profit_total')->sum('profit_total');
-        $unitsTotal  = $rows->sum('units_sold');
-        $missingCost = $rows->where('units_sold', '>', 0)->whereNull('cost_price')->count();
+        $unitsTotal = $rows->sum('units_sold');
+        $totalSales = $rows->sum('net_total');
 
         return Inertia::render('Rentabilidad/Index', [
-            'tab'   => $tab,
-            'month' => $month,
-            'rows'  => $rows->values(),
+            'tab'     => $tab,
+            'month'   => $month,
+            'rows'    => $rows->values(),
             'summary' => [
-                'to_pay'       => round($toPay),
-                'total_sales'  => round($totalSales),
-                'total_profit' => round($totalProfit),
-                'units_total'  => $unitsTotal,
-                'avg_margin'   => $totalSales > 0 ? round(($totalProfit / $totalSales) * 100, 1) : null,
-                'missing_cost' => $missingCost,
+                'units_total' => $unitsTotal,
+                'total_sales' => round($totalSales),
             ],
         ]);
     }
