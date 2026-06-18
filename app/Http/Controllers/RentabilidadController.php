@@ -42,6 +42,7 @@ class RentabilidadController extends Controller
             ->select(
                 'orders.ordered_at',
                 'orders.platform_order_id',
+                'orders.customer_name',
                 'products.name as product_name',
                 'product_variants.size',
                 'sales.quantity',
@@ -55,6 +56,7 @@ class RentabilidadController extends Controller
         $rows = $sales->map(fn ($s) => [
             'ordered_at'        => $s->ordered_at,
             'platform_order_id' => $s->platform_order_id,
+            'customer_name'     => $s->customer_name,
             'product_name'      => $s->product_name ?? 'Sin nombre',
             'size'              => $s->size,
             'quantity'          => (int) $s->quantity,
