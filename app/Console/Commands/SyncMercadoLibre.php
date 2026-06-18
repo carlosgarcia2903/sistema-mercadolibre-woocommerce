@@ -36,6 +36,8 @@ class SyncMercadoLibre extends Command
 
         // Órdenes que son nuevas en esta ejecución (para el correo)
         $ordenesNuevas = [];
+        // Cache de items ya procesados para variantes (evita llamadas repetidas a la API)
+        $itemsProcessed = [];
 
         do {
             $data    = $ml->searchOrders($sellerId, $offset, $limit, $after);
@@ -80,15 +82,16 @@ class SyncMercadoLibre extends Command
                             ]
                         );
 
-                        // El cost_price ingresado manualmente nunca se sobrescribe.
-                        $variant = ProductVariant::updateOrCreate(
-                            ['product_id' => $product->id, 'size' => $size],
-                            [
-                                'variant_source_id' => isset($p['variation_id']) ? (string) $p['variation_id'] : null,
-                                'sku'               => $p['seller_custom_field'] ?? null,
-                                'sale_price'        => (float) ($item['unit_price'] ?? 0),
-                            ]
-                        );
+                        // Traer todas las tallas del item desde la API (solo una vez por item).
+                        if (!isset($itemsProcessed[$p['id']])) {
+                            $itemsProcessed[$p['id']] = true;
+                            $this->syncMlVariants($ml, $product, $p['id'], (float) ($item['unit_price'] ?? 0));
+                        }
+
+                        // Variante correspondiente a esta venta específica.
+                        $variant = ProductVariant::where('product_id', $product->id)
+                            ->where('size', $size)
+                            ->first();
                     }
 
                     $saleFee = (float) ($item['sale_fee'] ?? 0);
@@ -215,6 +218,69 @@ class SyncMercadoLibre extends Command
 
         $this->info('Mercado Libre sync complete.');
         return Command::SUCCESS;
+    }
+
+    /**
+     * Llama a /items/{id} y crea una ProductVariant por cada talla única del producto.
+     * Ignora el color — el costo se trackea por talla solamente.
+     * El cost_price ingresado manualmente nunca se sobrescribe.
+     */
+    protected function syncMlVariants(MercadoLibreService $ml, Product $product, string $itemId, float $fallbackPrice): void
+    {
+        try {
+            $itemData = $ml->getItem($itemId);
+        } catch (\Throwable $e) {
+            $this->error("No se pudo obtener variantes del item {$itemId}: " . $e->getMessage());
+            return;
+        }
+
+        $variations = $itemData['variations'] ?? [];
+
+        if (empty($variations)) {
+            // Producto sin variaciones — una sola variante con size null.
+            ProductVariant::updateOrCreate(
+                ['product_id' => $product->id, 'size' => null],
+                [
+                    'sku'        => $itemData['seller_custom_field'] ?? null,
+                    'sale_price' => (float) ($itemData['price'] ?? $fallbackPrice),
+                ]
+            );
+            return;
+        }
+
+        // Extraer tallas únicas de todas las variaciones.
+        $tallasVistas = [];
+        foreach ($variations as $v) {
+            $size  = null;
+            $price = (float) ($v['price'] ?? $fallbackPrice);
+
+            foreach ($v['attribute_combinations'] ?? [] as $attr) {
+                $id   = strtolower($attr['id'] ?? '');
+                $name = strtolower($attr['name'] ?? '');
+                if ($id === 'size' || str_contains($name, 'talla') || str_contains($name, 'tamaño')) {
+                    $size = ($attr['value_name'] ?? '') ?: null;
+                    break;
+                }
+            }
+
+            // Si no hay atributo de talla, omitir (es solo variación de color).
+            if ($size === null) continue;
+            if (isset($tallasVistas[$size])) continue;
+            $tallasVistas[$size] = true;
+
+            ProductVariant::updateOrCreate(
+                ['product_id' => $product->id, 'size' => $size],
+                ['sale_price' => $price]
+            );
+        }
+
+        // Si todas las variaciones eran solo de color (sin talla), crear una sola con size null.
+        if (empty($tallasVistas)) {
+            ProductVariant::updateOrCreate(
+                ['product_id' => $product->id, 'size' => null],
+                ['sale_price' => (float) ($itemData['price'] ?? $fallbackPrice)]
+            );
+        }
     }
 
     /**
