@@ -1,7 +1,5 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router } from '@inertiajs/react';
-import axios from 'axios';
-import { useState } from 'react';
 
 const fmt = (n) =>
     n === null || n === undefined
@@ -11,43 +9,12 @@ const fmt = (n) =>
 const pct = (n) => (n === null || n === undefined ? '—' : `${n}%`);
 
 export default function Index({ auth, tab, month, rows, summary }) {
-    const isMl = tab === 'mercadolibre';
-    const tabs = [
+    const isMl  = tab === 'mercadolibre';
+    const data  = rows;
+    const tabs  = [
         { key: 'woocommerce', label: 'WooCommerce' },
         { key: 'mercadolibre', label: 'Mercado Libre' },
     ];
-
-    // Estado local de los costos por variante (para edición sin recargar).
-    const [data, setData] = useState(rows);
-    const [savingId, setSavingId] = useState(null);
-    const [savedId, setSavedId] = useState(null);
-
-    const recompute = (row, cost) => {
-        const c = cost === '' || cost === null ? null : Number(cost);
-        const net = row.net_unit;
-        const marginUnit = c !== null && net !== null ? Math.round(net - c) : null;
-        const marginPct =
-            marginUnit !== null && net > 0 ? Math.round(((net - c) / net) * 1000) / 10 : null;
-        const profitTotal = c !== null && net !== null ? Math.round((net - c) * row.units_sold) : null;
-        const costTotal = c !== null ? Math.round(c * row.units_sold) : null;
-        return { ...row, cost_price: c, margin_unit: marginUnit, margin_pct: marginPct, profit_total: profitTotal, cost_total: costTotal };
-    };
-
-    const onCostChange = (id, value) => {
-        setData((prev) => prev.map((r) => (r.id === id ? recompute(r, value) : r)));
-    };
-
-    const saveCost = (id, value) => {
-        setSavingId(id);
-        axios
-            .patch(route('variants.updateCost', id), { cost_price: value === '' ? null : value })
-            .then(() => {
-                setSavingId(null);
-                setSavedId(id);
-                setTimeout(() => setSavedId((cur) => (cur === id ? null : cur)), 1500);
-            })
-            .catch(() => setSavingId(null));
-    };
 
     const changeMonth = (e) => {
         router.get(route('rentabilidad.index', { tab, month: e.target.value }), {}, { preserveState: true });
@@ -130,20 +97,10 @@ export default function Index({ auth, tab, month, rows, summary }) {
                                                 </td>
                                             )}
                                             <td className="py-2 pr-4 text-right">
-                                                <div className="flex items-center justify-end gap-1">
-                                                    <span className="text-gray-400">$</span>
-                                                    <input
-                                                        type="number"
-                                                        min="0"
-                                                        value={r.cost_price ?? ''}
-                                                        onChange={(e) => onCostChange(r.id, e.target.value)}
-                                                        onBlur={(e) => saveCost(r.id, e.target.value)}
-                                                        className="w-24 text-right rounded-md border-gray-300 dark:border-slate-700 dark:bg-slate-800 text-sm py-1"
-                                                        placeholder="0"
-                                                    />
-                                                    {savingId === r.id && <span className="text-xs text-gray-400">…</span>}
-                                                    {savedId === r.id && <span className="text-xs text-emerald-500">✓</span>}
-                                                </div>
+                                                {r.cost_price !== null
+                                                    ? fmt(r.cost_price)
+                                                    : <Link href={route('reports.inventory', { tab })} className="text-xs text-indigo-500 hover:underline">Agregar en Inventario</Link>
+                                                }
                                             </td>
                                             <td className={`py-2 pr-4 text-right ${r.margin_unit < 0 ? 'text-rose-600' : ''}`}>
                                                 {r.margin_unit !== null ? fmt(r.margin_unit) : '—'}
