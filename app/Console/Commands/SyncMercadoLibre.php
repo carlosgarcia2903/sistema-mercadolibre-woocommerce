@@ -34,8 +34,10 @@ class SyncMercadoLibre extends Command
         $after  = $this->option('after') ?? now()->subDays(1)->startOfDay()->toIso8601ZuluString();
         $this->info("Fetching orders after: {$after}");
 
-        // Órdenes que son nuevas en esta ejecución (para el correo)
-        $ordenesNuevas = [];
+        // Correos pendientes agrupados por pack_id (o por order_id si no hay pack).
+        // Estructura: [ packKey => [ 'data' => [...], 'pdf_path' => ..., 'logistic_type' => ... ] ]
+        $correosNuevos  = [];
+        $ordenesNuevas  = [];
         // Cache de items ya procesados para variantes (evita llamadas repetidas a la API)
         $itemsProcessed = [];
 
@@ -186,23 +188,32 @@ class SyncMercadoLibre extends Command
                     }
                 }
 
-                // Enviar un correo por cada orden nueva
+                // Acumular órdenes nuevas agrupadas por pack_id para enviar un solo correo por compra.
                 if ($esNueva) {
-                    try {
-                        $this->info("Enviando correo para orden #{$o['id']}...");
-                        Mail::to('carlosgarcia.2903@gmail.com')
-                            ->send(new NuevasOrdenesMl([[
-                                'order_id'      => $o['id'],
-                                'customer'      => $o['buyer']['nickname'] ?? null,
-                                'status'        => $o['status'] ?? null,
-                                'total'         => (float) ($o['total_amount'] ?? 0),
-                                'logistic_type' => $logisticType,
-                                'pdf_path'      => $pdfPath,
-                                'items'         => $itemsParaCorreo,
-                            ]]));
-                    } catch (\Throwable $e) {
-                        $this->error("No se pudo enviar correo de orden #{$o['id']}: " . $e->getMessage());
+                    $packId   = $o['pack_id'] ?? null;
+                    $packKey  = $packId ? 'pack_' . $packId : 'order_' . $o['id'];
+
+                    if (!isset($correosNuevos[$packKey])) {
+                        $correosNuevos[$packKey] = [
+                            'order_id'      => $o['id'],
+                            'customer'      => $o['buyer']['nickname'] ?? null,
+                            'status'        => $o['status'] ?? null,
+                            'logistic_type' => $logisticType,
+                            'pdf_path'      => $pdfPath,
+                            'items'         => [],
+                            'total'         => 0,
+                        ];
                     }
+
+                    $correosNuevos[$packKey]['items']  = array_merge($correosNuevos[$packKey]['items'], $itemsParaCorreo);
+                    $correosNuevos[$packKey]['total'] += (float) ($o['total_amount'] ?? 0);
+
+                    // Si esta orden tiene etiqueta y la agrupación aún no la tiene, la asignamos.
+                    if (!empty($pdfPath) && empty($correosNuevos[$packKey]['pdf_path'])) {
+                        $correosNuevos[$packKey]['pdf_path']      = $pdfPath;
+                        $correosNuevos[$packKey]['logistic_type'] = $logisticType;
+                    }
+
                     $ordenesNuevas[] = $o['id'];
                 }
             }
@@ -210,8 +221,18 @@ class SyncMercadoLibre extends Command
             $offset += $limit;
         } while (!empty($results));
 
+        // Enviar un correo por pack (o por orden si no hay pack).
+        foreach ($correosNuevos as $packKey => $datos) {
+            try {
+                $this->info("Enviando correo para {$packKey} (" . count($datos['items']) . " ítem(s))...");
+                Mail::to('carlosgarcia.2903@gmail.com')->send(new NuevasOrdenesMl([$datos]));
+            } catch (\Throwable $e) {
+                $this->error("No se pudo enviar correo de {$packKey}: " . $e->getMessage());
+            }
+        }
+
         if (!empty($ordenesNuevas)) {
-            $this->info('Correo enviado. ' . count($ordenesNuevas) . ' orden(es) nueva(s).');
+            $this->info('Correo(s) enviado(s). ' . count($ordenesNuevas) . ' orden(es) nueva(s), ' . count($correosNuevos) . ' correo(s).');
         } else {
             $this->info('Sin órdenes nuevas, no se envía correo.');
         }
