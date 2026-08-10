@@ -1,12 +1,20 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router } from '@inertiajs/react';
 import axios from 'axios';
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
+import { motion } from 'framer-motion';
 
 const fmt = (n) =>
     n === null || n === undefined
         ? '—'
         : new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(n);
+
+const TABS = [
+    { key: 'woocommerce', label: 'WooCommerce', emoji: '🛍️', active: 'bg-violet-600 text-white shadow-sm shadow-violet-600/30' },
+    { key: 'mercadolibre', label: 'Mercado Libre', emoji: '🛒', active: 'bg-amber-500 text-white shadow-sm shadow-amber-500/30' },
+    { key: 'falabella', label: 'Falabella', emoji: '🟢', active: 'bg-green-600 text-white shadow-sm shadow-green-600/30' },
+    { key: 'paris', label: 'Paris', emoji: '🔴', active: 'bg-red-600 text-white shadow-sm shadow-red-600/30' },
+];
 
 function StockBadge({ stock }) {
     if (stock === null || stock === undefined) return <span className="text-gray-400">—</span>;
@@ -16,7 +24,7 @@ function StockBadge({ stock }) {
 }
 
 function CostInput({ variant }) {
-    const [value, setValue] = useState(variant.cost_price ?? '');
+    const [value, setValue] = useState(variant.cost_price !== null && variant.cost_price !== undefined ? Math.round(variant.cost_price) : '');
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
 
@@ -40,6 +48,7 @@ function CostInput({ variant }) {
             <input
                 type="number"
                 min="0"
+                step="1"
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
                 onBlur={save}
@@ -53,11 +62,6 @@ function CostInput({ variant }) {
 }
 
 export default function Inventory({ auth, tab, search, products }) {
-    const tabs = [
-        { key: 'woocommerce', label: 'WooCommerce' },
-        { key: 'mercadolibre', label: 'Mercado Libre' },
-    ];
-
     const [query, setQuery] = useState(search || '');
 
     const doSearch = (e) => {
@@ -71,55 +75,76 @@ export default function Inventory({ auth, tab, search, products }) {
 
             <div className="py-6">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-4">
+
                     {/* Encabezado */}
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                        <h1 className="text-xl font-semibold">Inventario</h1>
-                        <div className="flex gap-2">
-                            {tabs.map((t) => (
+                    <div>
+                        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Inventario</h1>
+                        <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">Costos y stock por plataforma</p>
+                    </div>
+
+                    {/* Tab bar de plataformas — indicador animado */}
+                    <div className="relative flex gap-1 rounded-2xl bg-gray-100 dark:bg-slate-800/60 p-1.5 w-full sm:w-fit overflow-x-auto">
+                        {TABS.map((t) => {
+                            const active = tab === t.key;
+                            return (
                                 <Link
                                     key={t.key}
                                     href={route('reports.inventory', { tab: t.key })}
-                                    className={`px-3 py-1 rounded-full text-sm ${
-                                        tab === t.key
-                                            ? 'bg-gray-900 text-white dark:bg-indigo-500'
-                                            : 'bg-gray-100 text-gray-700 dark:bg-slate-800 dark:text-gray-200'
+                                    className={`relative flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-colors duration-200 ${
+                                        active ? 'text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
                                     }`}
                                 >
-                                    {t.label}
+                                    {active && (
+                                        <motion.span
+                                            layoutId="inventory-tab-indicator"
+                                            className={`absolute inset-0 rounded-xl ${t.active}`}
+                                            transition={{ type: 'spring', stiffness: 400, damping: 32 }}
+                                        />
+                                    )}
+                                    <span className="relative">{t.emoji}</span>
+                                    <span className="relative">{t.label}</span>
                                 </Link>
-                            ))}
-                        </div>
+                            );
+                        })}
                     </div>
 
-                    {/* Buscador */}
-                    <form onSubmit={doSearch} className="flex gap-2">
-                        <input
-                            type="text"
-                            value={query}
-                            onChange={(e) => setQuery(e.target.value)}
-                            placeholder="Buscar por nombre o SKU..."
-                            className="flex-1 rounded-md border-gray-300 dark:border-slate-700 dark:bg-slate-800 text-sm"
-                        />
-                        <button type="submit" className="px-4 py-2 text-sm rounded-md bg-gray-900 text-white dark:bg-indigo-500">
-                            Buscar
-                        </button>
-                        {search && (
-                            <Link
-                                href={route('reports.inventory', { tab })}
-                                className="px-4 py-2 text-sm rounded-md bg-gray-100 dark:bg-slate-800 dark:text-gray-200"
-                            >
-                                Limpiar
-                            </Link>
-                        )}
-                    </form>
+                    {/* Card principal */}
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 overflow-hidden">
 
-                    {/* Tabla */}
-                    <div className="bg-white dark:bg-slate-900 overflow-hidden shadow-sm sm:rounded-lg border border-transparent dark:border-slate-800">
+                        {/* Buscador */}
+                        <form onSubmit={doSearch} className="flex gap-2 px-5 py-4 border-b border-gray-100 dark:border-slate-800">
+                            <div className="relative flex-1">
+                                <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <circle cx="11" cy="11" r="7" />
+                                    <path strokeLinecap="round" d="m20 20-3-3" />
+                                </svg>
+                                <input
+                                    type="text"
+                                    value={query}
+                                    onChange={(e) => setQuery(e.target.value)}
+                                    placeholder="Buscar por nombre o SKU..."
+                                    className="w-full pl-9 rounded-lg border-gray-300 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-100 text-sm"
+                                />
+                            </div>
+                            <button type="submit" className="px-4 py-2 text-sm rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition-colors">
+                                Buscar
+                            </button>
+                            {search && (
+                                <Link
+                                    href={route('reports.inventory', { tab })}
+                                    className="px-4 py-2 text-sm rounded-lg bg-gray-100 dark:bg-slate-800 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
+                                >
+                                    Limpiar
+                                </Link>
+                            )}
+                        </form>
+
+                        {/* Tabla */}
                         <div className="overflow-x-auto">
                             <table className="min-w-full text-sm">
                                 <thead>
-                                    <tr className="text-left border-b border-gray-200 dark:border-slate-800 text-gray-500 dark:text-gray-400">
-                                        <th className="py-3 px-4">Producto / Talla</th>
+                                    <tr className="text-left text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 bg-gray-50/80 dark:bg-slate-800/40 border-b border-gray-100 dark:border-slate-800">
+                                        <th className="py-3 px-5">Producto / Talla</th>
                                         <th className="py-3 px-4">SKU</th>
                                         <th className="py-3 px-4 text-right">Precio venta</th>
                                         <th className="py-3 px-4 text-center">Stock</th>
@@ -129,32 +154,40 @@ export default function Inventory({ auth, tab, search, products }) {
                                 <tbody>
                                     {products.data.length === 0 && (
                                         <tr>
-                                            <td colSpan={5} className="py-8 text-center text-gray-400">
-                                                No se encontraron productos.
+                                            <td colSpan={5} className="py-16 text-center text-gray-400">
+                                                <div className="flex flex-col items-center gap-2">
+                                                    <span className="text-3xl">📦</span>
+                                                    <span>No se encontraron productos.</span>
+                                                </div>
                                             </td>
                                         </tr>
                                     )}
-                                    {products.data.map((p) => {
+                                    {products.data.map((p, idx) => {
                                         const variants = p.variants ?? [];
                                         return (
-                                            <>
+                                            <Fragment key={`group-${p.id}`}>
                                                 {/* Fila producto padre */}
-                                                <tr key={`p-${p.id}`} className="border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/60">
-                                                    <td className="py-2 px-4 font-medium" colSpan={2}>{p.name}</td>
-                                                    <td className="py-2 px-4 text-right">{fmt(p.price)}</td>
-                                                    <td className="py-2 px-4 text-center"><StockBadge stock={p.stock} /></td>
+                                                <motion.tr
+                                                    initial={{ opacity: 0, y: 6 }}
+                                                    animate={{ opacity: 1, y: 0 }}
+                                                    transition={{ duration: 0.2, delay: Math.min(idx * 0.02, 0.3) }}
+                                                    className="border-b border-gray-100 dark:border-slate-700 bg-gray-50/80 dark:bg-slate-800/60"
+                                                >
+                                                    <td className="py-2.5 px-5 font-semibold text-gray-800 dark:text-gray-100" colSpan={2}>{p.name}</td>
+                                                    <td className="py-2.5 px-4 text-right text-gray-600 dark:text-gray-300">{fmt(p.price)}</td>
+                                                    <td className="py-2.5 px-4 text-center"><StockBadge stock={p.stock} /></td>
                                                     <td />
-                                                </tr>
+                                                </motion.tr>
 
                                                 {/* Filas de tallas/variantes */}
                                                 {variants.length > 0 ? (
                                                     variants.map((v) => (
-                                                        <tr key={`v-${v.id}`} className="border-b border-gray-100 dark:border-slate-800/60 hover:bg-gray-50 dark:hover:bg-slate-800/30">
-                                                            <td className="py-2 pl-8 pr-4 text-gray-500">
+                                                        <tr key={`v-${v.id}`} className="border-b border-gray-50 dark:border-slate-800/60 hover:bg-gray-50 dark:hover:bg-slate-800/30 transition-colors duration-100">
+                                                            <td className="py-2 pl-9 pr-4 text-gray-500 dark:text-gray-400">
                                                                 ↳ {v.size || 'Sin talla'}
                                                             </td>
                                                             <td className="py-2 px-4 text-gray-400 text-xs">{v.sku || '—'}</td>
-                                                            <td className="py-2 px-4 text-right">{fmt(v.sale_price)}</td>
+                                                            <td className="py-2 px-4 text-right text-gray-600 dark:text-gray-300">{fmt(v.sale_price)}</td>
                                                             <td />
                                                             <td className="py-2 px-4">
                                                                 <CostInput variant={v} />
@@ -162,14 +195,14 @@ export default function Inventory({ auth, tab, search, products }) {
                                                         </tr>
                                                     ))
                                                 ) : (
-                                                    <tr className="border-b border-gray-100 dark:border-slate-800/60">
-                                                        <td className="py-2 pl-8 pr-4 text-gray-400 text-xs" colSpan={4}>
+                                                    <tr className="border-b border-gray-50 dark:border-slate-800/60">
+                                                        <td className="py-2 pl-9 pr-4 text-gray-400 text-xs" colSpan={4}>
                                                             Sin variantes sincronizadas aún
                                                         </td>
                                                         <td />
                                                     </tr>
                                                 )}
-                                            </>
+                                            </Fragment>
                                         );
                                     })}
                                 </tbody>
@@ -178,19 +211,19 @@ export default function Inventory({ auth, tab, search, products }) {
 
                         {/* Paginación */}
                         {products.last_page > 1 && (
-                            <div className="px-4 py-3 border-t border-gray-100 dark:border-slate-800 flex flex-wrap gap-2 items-center justify-between">
+                            <div className="px-5 py-4 border-t border-gray-100 dark:border-slate-800 flex flex-wrap gap-2 items-center justify-between">
                                 <span className="text-xs text-gray-400">
                                     {products.total} productos · página {products.current_page} de {products.last_page}
                                 </span>
-                                <div className="flex gap-1">
+                                <div className="flex flex-wrap gap-1.5">
                                     {products.links.map((link, i) => (
                                         <Link
                                             key={i}
                                             href={link.url || '#'}
-                                            className={`px-2 py-1 text-xs rounded ${
+                                            className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
                                                 link.active
                                                     ? 'bg-gray-900 text-white dark:bg-indigo-500'
-                                                    : 'bg-gray-100 dark:bg-slate-800 dark:text-gray-200'
+                                                    : 'bg-gray-50 dark:bg-slate-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-700'
                                             } ${!link.url ? 'opacity-40 pointer-events-none' : ''}`}
                                             dangerouslySetInnerHTML={{ __html: link.label }}
                                         />
