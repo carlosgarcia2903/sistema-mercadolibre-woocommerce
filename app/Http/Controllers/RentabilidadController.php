@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ProductVariant;
+use App\Models\Sale;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -10,71 +11,158 @@ use Inertia\Inertia;
 
 class RentabilidadController extends Controller
 {
-    // Estados que NO se pagan al proveedor (cancelados / devueltos / reembolsados)
     protected array $excludedStatuses = [
         'cancelled', 'canceled', 'refunded', 'returned',
     ];
 
     public function index(Request $request)
     {
-        $tab    = $request->query('tab', 'woocommerce');
-        $source = $tab === 'mercadolibre' ? 'mercadolibre' : 'woocommerce';
+        $tab      = $request->query('tab', 'mercadolibre');
+        $platform = in_array($tab, ['mercadolibre', 'falabella', 'paris', 'woocommerce'], true) ? $tab : 'woocommerce';
+        // ML, Falabella y Paris almacenan received_amount a nivel de orden → usan neto recibido.
+        $isMl     = in_array($platform, ['mercadolibre', 'falabella', 'paris'], true);
 
-        // Periodo: mes seleccionado (YYYY-MM), por defecto el mes actual.
         $month = $request->query('month', now()->format('Y-m'));
         try {
             $start = Carbon::createFromFormat('Y-m', $month)->startOfMonth();
-        } catch (\Throwable $e) {
+        } catch (\Throwable) {
             $start = now()->startOfMonth();
             $month = $start->format('Y-m');
         }
         $end = (clone $start)->endOfMonth();
 
-        // Ventas individuales del periodo (una fila por sale).
-        $sales = DB::table('sales')
-            ->join('orders', 'sales.order_id', '=', 'orders.id')
-            ->leftJoin('product_variants', 'sales.variant_id', '=', 'product_variants.id')
-            ->leftJoin('products', 'product_variants.product_id', '=', 'products.id')
-            ->where('orders.platform', $source)
-            ->whereBetween('orders.ordered_at', [$start, $end])
-            ->whereNotIn(DB::raw('LOWER(orders.status)'), $this->excludedStatuses)
-            ->orderBy('orders.ordered_at')
-            ->select(
-                'orders.ordered_at',
-                'orders.platform_order_id',
-                'orders.customer_name',
-                'products.name as product_name',
-                'product_variants.size',
-                'sales.quantity',
-                'sales.unit_price',
-                'sales.sale_fee',
-                DB::raw('(sales.unit_price - sales.sale_fee) as net_unit'),
-                DB::raw('(sales.unit_price - sales.sale_fee) * sales.quantity as net_total')
+        // Cargar todas las ventas del período con sus relaciones
+        $sales = Sale::query()
+            ->with(['product', 'variant', 'order'])
+            ->whereHas('order', fn ($q) => $q
+                ->where('platform', $platform)
+                ->whereBetween('ordered_at', [$start, $end])
+                ->whereNotIn(DB::raw('LOWER(status)'), $this->excludedStatuses)
             )
             ->get();
 
-        $rows = $sales->map(fn ($s) => [
-            'ordered_at'        => $s->ordered_at,
-            'platform_order_id' => $s->platform_order_id,
-            'customer_name'     => $s->customer_name,
-            'product_name'      => $s->product_name ?? 'Sin nombre',
-            'size'              => $s->size,
-            'quantity'          => (int) $s->quantity,
-            'unit_price'        => round((float) $s->unit_price),
-            'net_unit'          => round((float) $s->net_unit),
-            'net_total'         => round((float) $s->net_total),
-        ])->values();
+        // Para ML: pre-calcular received proporcional por sale dentro de cada orden.
+        // received proporcional = order.received_amount × (sale.total / sum_totals_en_esa_orden)
+        $orderReceivedMap = []; // order_id → received_amount
+        $orderTotalsMap   = []; // order_id → sum of sale.total en esa orden
 
-        $unitsTotal = $rows->sum('quantity');
-        $totalSales = $rows->sum('net_total');
+        if ($isMl) {
+            foreach ($sales as $sale) {
+                $oid = $sale->order_id;
+                if (!isset($orderReceivedMap[$oid])) {
+                    $orderReceivedMap[$oid] = (float) ($sale->order->received_amount ?? 0);
+                    $orderTotalsMap[$oid]   = 0;
+                }
+                $orderTotalsMap[$oid] += (float) $sale->total;
+            }
+        }
+
+        // Agrupar por producto
+        $byProduct = [];
+
+        foreach ($sales as $sale) {
+            $productId   = $sale->product_id ?? 0;
+            $productName = $sale->product?->name ?? 'Sin nombre';
+            $qty         = (int) $sale->quantity;
+            $gross       = (float) $sale->total;
+            $costUnit    = $sale->variant?->cost_price !== null
+                ? (float) $sale->variant->cost_price
+                : null;
+
+            // Received proporcional (ML) o gross (WC)
+            if ($isMl) {
+                $oid        = $sale->order_id;
+                $orderTotal = $orderTotalsMap[$oid] ?? 0;
+                $received   = $orderTotal > 0
+                    ? round($orderReceivedMap[$oid] * ($gross / $orderTotal))
+                    : 0;
+            } else {
+                $received = $gross;
+            }
+
+            if (!isset($byProduct[$productId])) {
+                $byProduct[$productId] = [
+                    'product_id'     => $productId,
+                    'product_name'   => $productName,
+                    'total_qty'      => 0,
+                    'total_gross'    => 0,
+                    'total_received' => 0,
+                    'total_cost'     => 0,
+                    'has_cost'       => false,
+                ];
+            }
+
+            $byProduct[$productId]['total_qty']      += $qty;
+            $byProduct[$productId]['total_gross']    += $gross;
+            $byProduct[$productId]['total_received'] += $received;
+
+            if ($costUnit !== null) {
+                $byProduct[$productId]['total_cost'] += $costUnit * $qty;
+                $byProduct[$productId]['has_cost']    = true;
+            }
+        }
+
+        // Calcular ganancia y margen, ordenar por qty desc
+        $products = collect($byProduct)
+            ->map(function ($p) use ($isMl) {
+                $income  = $isMl ? $p['total_received'] : $p['total_gross'];
+                $profit  = $p['has_cost'] ? $income - $p['total_cost'] : null;
+                $margin  = ($profit !== null && $income > 0)
+                    ? round($profit / $income * 100, 1)
+                    : null;
+
+                return [
+                    'product_id'     => $p['product_id'],
+                    'product_name'   => $p['product_name'],
+                    'total_qty'      => $p['total_qty'],
+                    'total_gross'    => round($p['total_gross']),
+                    'total_received' => round($p['total_received']),
+                    'total_cost'     => $p['has_cost'] ? round($p['total_cost']) : null,
+                    'profit'         => $profit !== null ? round($profit) : null,
+                    'margin_pct'     => $margin,
+                ];
+            })
+            ->sortByDesc('total_qty')
+            ->values();
+
+        // Serie diaria para gráfico de líneas
+        $daily = Sale::query()
+            ->join('orders', 'sales.order_id', '=', 'orders.id')
+            ->where('orders.platform', $platform)
+            ->whereBetween('orders.ordered_at', [$start, $end])
+            ->whereNotIn(DB::raw('LOWER(orders.status)'), $this->excludedStatuses)
+            ->groupBy(DB::raw('DATE(orders.ordered_at)'))
+            ->orderBy(DB::raw('DATE(orders.ordered_at)'))
+            ->selectRaw('DATE(orders.ordered_at) as date, SUM(sales.quantity) as qty, SUM(sales.total) as gross')
+            ->get()
+            ->map(fn ($r) => [
+                'date'  => $r->date,
+                'qty'   => (int) $r->qty,
+                'gross' => round((float) $r->gross),
+            ])
+            ->values();
+
+        // Summary cards
+        $totalUnits    = $products->sum('total_qty');
+        $totalGross    = $products->sum('total_gross');
+        $totalReceived = $products->sum('total_received');
+        $costsKnown    = $products->filter(fn ($p) => $p['total_cost'] !== null);
+        $totalCost     = $costsKnown->isNotEmpty() ? $costsKnown->sum('total_cost') : null;
+        $totalProfit   = $totalCost !== null
+            ? ($isMl ? $totalReceived : $totalGross) - $totalCost
+            : null;
 
         return Inertia::render('Rentabilidad/Index', [
-            'tab'     => $tab,
-            'month'   => $month,
-            'rows'    => $rows->values(),
-            'summary' => [
-                'units_total' => $unitsTotal,
-                'total_sales' => round($totalSales),
+            'tab'      => $tab,
+            'month'    => $month,
+            'products' => $products,
+            'daily'    => $daily,
+            'summary'  => [
+                'total_units'    => $totalUnits,
+                'total_gross'    => round($totalGross),
+                'total_received' => round($totalReceived),
+                'total_cost'     => $totalCost !== null ? round($totalCost) : null,
+                'total_profit'   => $totalProfit !== null ? round($totalProfit) : null,
             ],
         ]);
     }
@@ -85,11 +173,12 @@ class RentabilidadController extends Controller
             'cost_price' => ['nullable', 'numeric', 'min:0'],
         ]);
 
-        $variant->update(['cost_price' => $data['cost_price'] ?? null]);
+        $cost = isset($data['cost_price']) ? (int) round($data['cost_price']) : null;
+        $variant->update(['cost_price' => $cost]);
 
         return response()->json([
             'id'         => $variant->id,
-            'cost_price' => $variant->cost_price !== null ? (float) $variant->cost_price : null,
+            'cost_price' => $variant->cost_price !== null ? (int) $variant->cost_price : null,
         ]);
     }
 }
