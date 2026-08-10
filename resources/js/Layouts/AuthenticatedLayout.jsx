@@ -51,17 +51,8 @@ export default function AuthenticatedLayout({ header, children }) {
                             <NavLink href={route('rentabilidad.index')} active={route().current('rentabilidad.index')}>
                                 Rentabilidad
                             </NavLink>
-                            <NavLink href={route('mlpdfs.index')} active={route().current('mlpdfs.index')}>
-                                PDFs ML
-                            </NavLink>
                             <NavLink href={route('reports.inventory')} active={route().current('reports.inventory')}>
                                 Inventario
-                            </NavLink>
-                            <NavLink href={route('reports.orders')} active={route().current('reports.orders')}>
-                                Reportes
-                            </NavLink>
-                            <NavLink href={route('reports.platforms')} active={route().current('reports.platforms')}>
-                                Plataformas
                             </NavLink>
                         </div>
                     </div>
@@ -158,17 +149,8 @@ export default function AuthenticatedLayout({ header, children }) {
                                 <ResponsiveNavLink href={route('rentabilidad.index')} active={route().current('rentabilidad.index')}>
                                     Rentabilidad
                                 </ResponsiveNavLink>
-                                <ResponsiveNavLink href={route('mlpdfs.index')} active={route().current('mlpdfs.index')}>
-                                    PDFs ML
-                                </ResponsiveNavLink>
                                 <ResponsiveNavLink href={route('reports.inventory')} active={route().current('reports.inventory')}>
                                     Inventario
-                                </ResponsiveNavLink>
-                                <ResponsiveNavLink href={route('reports.orders')} active={route().current('reports.orders')}>
-                                    Reportes
-                                </ResponsiveNavLink>
-                                <ResponsiveNavLink href={route('reports.platforms')} active={route().current('reports.platforms')}>
-                                    Plataformas
                                 </ResponsiveNavLink>
                             </div>
                         </div>

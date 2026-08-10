@@ -93,12 +93,8 @@ Route::middleware('auth')->group(function () {
     Route::patch('/orders/{order}/status', [OrdersController::class, 'updateStatus'])->name('orders.updateStatus');
     Route::get('/rentabilidad', [RentabilidadController::class, 'index'])->name('rentabilidad.index');
     Route::patch('/variants/{variant}/cost', [RentabilidadController::class, 'updateCost'])->name('variants.updateCost');
-    Route::get('/ml-pdfs', [MlPdfsController::class, 'index'])->name('mlpdfs.index');
     Route::get('/ml-pdfs/{mlPdf}/download', [MlPdfsController::class, 'download'])->name('mlpdfs.download');
     Route::get('/reports/inventory', [ReportsController::class, 'inventory'])->name('reports.inventory');
-    Route::get('/reports/orders', [ReportsController::class, 'orders'])->name('reports.orders');
-    Route::get('/reports/platforms', [ReportsController::class, 'platformSummary'])->name('reports.platforms');
-    Route::get('/reports/orders/export', [ReportsController::class, 'exportOrdersCsv'])->name('reports.orders.export');
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');

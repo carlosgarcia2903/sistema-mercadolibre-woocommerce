@@ -120,9 +120,6 @@ export default function Dashboard({ auth, stats, mlPdfs, chart }) {
                                 <Button variant="outline" onClick={() => (window.location.href = route('orders.index'))}>
                                     Ver órdenes
                                 </Button>
-                                <Button variant="outline" onClick={() => (window.location.href = route('mlpdfs.index'))}>
-                                    Etiquetas ML
-                                </Button>
                             </CardContent>
                         </Card>
                     </motion.div>
@@ -138,12 +135,9 @@ export default function Dashboard({ auth, stats, mlPdfs, chart }) {
                                 <h3 className="text-lg font-semibold">Etiquetas ML (PDFs)</h3>
                                 <p className="text-sm text-gray-500">Últimas etiquetas sincronizadas</p>
                             </div>
-                            <a
-                                href={route('mlpdfs.index', { type: pdfTab })}
-                                className="text-sm text-indigo-600 hover:text-indigo-800"
-                            >
-                                Ver todas ({mlPdfs?.total ?? 0})
-                            </a>
+                            <span className="text-sm text-gray-400">
+                                {mlPdfs?.total ?? 0} en total
+                            </span>
                         </div>
 
                         <div className="mb-4 flex gap-2">
