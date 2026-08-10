@@ -11,4 +11,6 @@ Artisan::command('inspire', function () {
 // Sincronización incremental (desde las 00:00 de ayer) — 8:00, 11:00, 13:00, 16:00, 20:00
 Schedule::command('sync:woocommerce')->cron('0 8,11,13,16,20 * * *');
 Schedule::command('sync:mercadolibre')->cron('0 8,11,13,16,20 * * *');
+Schedule::command('sync:falabella')->cron('0 8,11,13,16,20 * * *');
+Schedule::command('sync:paris')->cron('0 8,11,13,16,20 * * *');
 Schedule::command('ml:refresh-token')->cron('0 */5 * * *');

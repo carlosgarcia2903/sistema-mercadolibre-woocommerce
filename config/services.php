@@ -51,4 +51,15 @@ return [
         'redirect_uri' => env('MERCADOLIBRE_REDIRECT_URI'),
     ],
 
+    'falabella' => [
+        'url' => env('FALABELLA_URL', 'https://sellercenter-api.falabella.com'),
+        'user_id' => env('FALABELLA_USER_ID'),
+        'api_key' => env('FALABELLA_API_KEY'),
+    ],
+
+    'paris' => [
+        'url' => env('PARIS_URL'),
+        'api_key' => env('PARIS_API_KEY'),
+    ],
+
 ];
