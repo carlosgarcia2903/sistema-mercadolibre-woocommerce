@@ -9,8 +9,12 @@ class Order extends Model
     protected $fillable = [
         'platform',
         'platform_order_id',
+        'pack_id',
         'status',
         'total',
+        'shipping_cost',
+        'sale_fees',
+        'received_amount',
         'currency',
         'ordered_at',
         'customer_name',

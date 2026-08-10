@@ -8,6 +8,7 @@ class MlPdf extends Model
 {
     protected $fillable = [
         'order_id',
+        'platform',
         'platform_shipment_id',
         'logistic_type',
         'shipment_status',

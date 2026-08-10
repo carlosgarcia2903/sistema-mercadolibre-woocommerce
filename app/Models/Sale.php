@@ -11,6 +11,7 @@ class Sale extends Model
         'product_id',
         'variant_id',
         'size',
+        'color',
         'quantity',
         'unit_price',
         'sale_fee',
