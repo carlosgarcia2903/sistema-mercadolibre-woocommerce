@@ -83,10 +83,13 @@ class MercadoLibreService
             return null;
         }
 
-        // Mercado Libre devuelve 400 con failed_shipments cuando la etiqueta
-        // aun no esta disponible para el estado logístico actual.
-        if ($response->status() === 400 && isset($response->json()['failed_shipments'])) {
-            return null;
+        // Mercado Libre devuelve 400 o (a veces) 500 con failed_shipments cuando
+        // la etiqueta aun no esta disponible para el estado logístico actual.
+        if (in_array($response->status(), [400, 500], true)) {
+            $json = $response->json();
+            if (is_array($json) && isset($json['failed_shipments'])) {
+                return null;
+            }
         }
 
         $response->throw();
@@ -105,6 +108,50 @@ class MercadoLibreService
 
         $response->throw();
         return $response->json();
+    }
+
+    /**
+     * Obtiene el costo neto de envío para el VENDEDOR usando /shipments/{id}/costs.
+     * Devuelve el neto efectivo:
+     *   - positivo = costo a cargo del vendedor
+     *   - negativo = bonificación a favor del vendedor (solo Flex/self_service)
+     *
+     * Lógica:
+     *   - senders[0].cost = lo que paga el vendedor (correcto para ML normal y buyer-pays-shipping)
+     *   - Para Flex (self_service): senders.cost = 0, pero el vendedor recibe receiver.save como bonificación
+     */
+    /**
+     * Obtiene el costo neto de envío para el VENDEDOR usando /shipments/{id}/costs.
+     *
+     * Fórmula unificada:
+     *   - No Flex: net = senders[0].cost  (lo que paga el vendedor a ML)
+     *   - Flex:    net = senders[0].cost - receiver.save  (costo - bonificación; puede ser negativo)
+     *
+     * Un resultado negativo significa que el vendedor RECIBE ese monto como bonificación.
+     */
+    public function getShipmentNetCost(int|string $shipmentId, string $logisticType): float
+    {
+        try {
+            $response = $this->requestWithAutoRefresh(function () use ($shipmentId) {
+                return $this->client()->get($this->baseUrl . '/shipments/' . $shipmentId . '/costs');
+            });
+
+            if (!$response->successful()) {
+                return 0;
+            }
+
+            $data       = $response->json();
+            $sellerCost = (float) ($data['senders'][0]['cost'] ?? 0);
+
+            if ($logisticType === 'self_service') {
+                $flexBonus = (float) ($data['receiver']['save'] ?? 0);
+                return $sellerCost - $flexBonus;
+            }
+
+            return $sellerCost;
+        } catch (\Throwable) {
+            return 0;
+        }
     }
 
     public function refreshAccessToken(bool $persistInEnv = false): array

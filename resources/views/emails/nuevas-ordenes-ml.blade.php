@@ -55,6 +55,7 @@
                         <tr>
                             <th>Producto</th>
                             <th>Talla</th>
+                            <th>Color</th>
                             <th>Cant.</th>
                             <th>Precio unit.</th>
                             <th>Total</th>
@@ -65,6 +66,7 @@
                         <tr>
                             <td>{{ $item['name'] }}</td>
                             <td>{{ $item['size'] ?? '-' }}</td>
+                            <td>{{ $item['color'] ?? '-' }}</td>
                             <td>{{ $item['quantity'] }}</td>
                             <td>${{ number_format($item['unit_price'], 0, ',', '.') }}</td>
                             <td>${{ number_format($item['total'], 0, ',', '.') }}</td>

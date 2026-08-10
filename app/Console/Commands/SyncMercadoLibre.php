@@ -50,16 +50,44 @@ class SyncMercadoLibre extends Command
                     ->where('platform_order_id', (string) $o['id'])
                     ->exists();
 
+                // sale_fee en la API de ML es por unidad — multiplicar por quantity
+                $saleFees = collect($o['order_items'] ?? [])->sum(
+                    fn ($i) => (float) ($i['sale_fee'] ?? 0) * (int) ($i['quantity'] ?? 1)
+                );
+
+                // El shipping_cost real viene del shipment (shipping_option.list_cost)
+                // Lo obtenemos antes de guardar la orden para tener el total recibido correcto
+                $shipmentIdPre = $o['shipping']['id'] ?? null;
+                $shippingCost  = 0;
+                $shipmentPre   = null;
+                if ($shipmentIdPre) {
+                    try {
+                        $shipmentPre  = $ml->getShipment($shipmentIdPre);
+                        $logisticType = $shipmentPre['logistic_type'] ?? '';
+                        // Neto real usando /costs: positivo = costo vendedor, negativo = bonificación Flex
+                        $shippingCost = $ml->getShipmentNetCost($shipmentIdPre, $logisticType);
+                    } catch (\Throwable $e) {
+                        $this->error("No se pudo obtener shipment #{$shipmentIdPre}: " . $e->getMessage());
+                    }
+                }
+
+                $paidAmount = (float) ($o['paid_amount'] ?? $o['total_amount'] ?? 0);
+                $received   = $paidAmount - $saleFees - $shippingCost;
+
                 $order = Order::updateOrCreate(
                     ['platform' => 'mercadolibre', 'platform_order_id' => (string) $o['id']],
                     [
-                        'status'         => $o['status'] ?? null,
-                        'total'          => (float) ($o['total_amount'] ?? 0),
-                        'currency'       => $o['currency_id'] ?? 'CLP',
-                        'ordered_at'     => isset($o['date_created']) ? Carbon::parse($o['date_created']) : null,
-                        'customer_name'  => $o['buyer']['nickname'] ?? null,
-                        'customer_email' => $o['buyer']['email'] ?? null,
-                        'raw_json'       => $o,
+                        'pack_id'         => $o['pack_id'] ?? null,
+                        'status'          => $o['status'] ?? null,
+                        'total'           => (float) ($o['total_amount'] ?? 0),
+                        'shipping_cost'   => $shippingCost,
+                        'sale_fees'       => $saleFees,
+                        'received_amount' => $received,
+                        'currency'        => $o['currency_id'] ?? 'CLP',
+                        'ordered_at'      => isset($o['date_created']) ? Carbon::parse($o['date_created']) : null,
+                        'customer_name'   => $o['buyer']['nickname'] ?? null,
+                        'customer_email'  => $o['buyer']['email'] ?? null,
+                        'raw_json'        => $o,
                     ]
                 );
 
@@ -71,6 +99,7 @@ class SyncMercadoLibre extends Command
                     $product = null;
                     $variant = null;
                     $size    = $this->extractMlSize($p);
+                    $color   = $this->extractMlColor($p);
 
                     if (!empty($p['id'])) {
                         $product = Product::updateOrCreate(
@@ -103,6 +132,7 @@ class SyncMercadoLibre extends Command
                         'product_id' => $product?->id,
                         'variant_id' => $variant?->id,
                         'size'       => $size,
+                        'color'      => $color,
                         'quantity'   => (int) ($item['quantity'] ?? 1),
                         'unit_price' => (float) ($item['unit_price'] ?? 0),
                         'sale_fee'   => $saleFee,
@@ -112,6 +142,7 @@ class SyncMercadoLibre extends Command
                     $itemsParaCorreo[] = [
                         'name'       => $p['title'] ?? 'Sin nombre',
                         'size'       => $size,
+                        'color'      => $color,
                         'quantity'   => (int) ($item['quantity'] ?? 1),
                         'unit_price' => (float) ($item['unit_price'] ?? 0),
                         'total'      => (float) ($item['unit_price'] ?? 0) * (int) ($item['quantity'] ?? 1),
@@ -119,21 +150,27 @@ class SyncMercadoLibre extends Command
                 }
 
                 // --- Envío / etiqueta ---
-                $shipmentId   = $o['shipping']['id'] ?? null;
+                $shipmentId   = $shipmentIdPre;
                 $logisticType = null;
                 $pdfPath      = null;
 
                 if ($shipmentId) {
                     $pdfPath  = "mercadolibre/labels/{$shipmentId}.pdf";
-                    $shipment = $ml->getShipment($shipmentId);
+                    // Reutilizar el shipment ya obtenido; si falló antes, intentar de nuevo
+                    $shipment = $shipmentPre ?? $ml->getShipment($shipmentId);
                     $logisticType      = $shipment['logistic_type'] ?? null;
                     $shipmentStatus    = $shipment['status'] ?? null;
                     $shipmentSubstatus = $shipment['substatus'] ?? null;
 
                     if (!Storage::disk('local')->exists($pdfPath)) {
-                        $pdfBinary = $ml->getShipmentLabel($shipmentId);
-                        if ($pdfBinary) {
-                            Storage::disk('local')->put($pdfPath, $pdfBinary);
+                        try {
+                            $pdfBinary = $ml->getShipmentLabel($shipmentId);
+                            if ($pdfBinary) {
+                                Storage::disk('local')->put($pdfPath, $pdfBinary);
+                            }
+                        } catch (\Throwable $e) {
+                            // No dejar que la falla de UNA etiqueta aborte todo el sync.
+                            $this->error("No se pudo descargar etiqueta del shipment #{$shipmentId}: " . $e->getMessage());
                         }
                     }
 
@@ -322,6 +359,25 @@ class SyncMercadoLibre extends Command
         $attrs = $item['variation_attributes'] ?? [];
         if (count($attrs) === 1) {
             return ($attrs[0]['value_name'] ?? '') ?: null;
+        }
+
+        return null;
+    }
+
+    /**
+     * Extrae el color desde los atributos de variación de un ítem de MercadoLibre.
+     * Complementa a extractMlSize(): el título del producto suele venir genérico
+     * (ej. "Pack Ajuares Bebé 100% Algodón (colores)") y el color real solo está
+     * en variation_attributes.
+     */
+    protected function extractMlColor(array $item): ?string
+    {
+        foreach ($item['variation_attributes'] ?? [] as $attr) {
+            $name = strtolower($attr['name'] ?? '');
+            $id   = strtolower($attr['id'] ?? '');
+            if ($id === 'color' || str_contains($name, 'color')) {
+                return ($attr['value_name'] ?? '') ?: null;
+            }
         }
 
         return null;
