@@ -309,6 +309,64 @@ SET @stmt := (SELECT IF(
 ));
 PREPARE p FROM @stmt; EXECUTE p; DEALLOCATE PREPARE p;
 
+-- products.image_path (foto del producto en el módulo "Venta en Tienda")
+SET @stmt := (SELECT IF(
+  (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND COLUMN_NAME = 'image_path') = 0,
+  'ALTER TABLE `products` ADD COLUMN `image_path` VARCHAR(255) NULL AFTER `description`',
+  'SELECT 1'
+));
+PREPARE p FROM @stmt; EXECUTE p; DEALLOCATE PREPARE p;
+
+-- product_variants.wholesale_price (precio al comprar 3+ de la misma talla)
+SET @stmt := (SELECT IF(
+  (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'product_variants' AND COLUMN_NAME = 'wholesale_price') = 0,
+  'ALTER TABLE `product_variants` ADD COLUMN `wholesale_price` DECIMAL(12,2) NULL AFTER `sale_price`',
+  'SELECT 1'
+));
+PREPARE p FROM @stmt; EXECUTE p; DEALLOCATE PREPARE p;
+
+-- product_variants.sort_order (orden manual de tallas, arrastrable en /pos)
+SET @stmt := (SELECT IF(
+  (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'product_variants' AND COLUMN_NAME = 'sort_order') = 0,
+  'ALTER TABLE `product_variants` ADD COLUMN `sort_order` INT UNSIGNED NOT NULL DEFAULT 0 AFTER `size`',
+  'SELECT 1'
+));
+PREPARE p FROM @stmt; EXECUTE p; DEALLOCATE PREPARE p;
+
+-- Catálogo inicial de "Venta en Tienda" (source = 'presencial'). Solo nombres;
+-- talla/precio/foto se cargan después desde /pos. No duplica si ya existen.
+INSERT INTO `products` (`name`, `source`, `price`, `created_at`, `updated_at`)
+SELECT * FROM (SELECT 'Body' AS name, 'presencial' AS source, 0 AS price, NOW() AS created_at, NOW() AS updated_at) t
+WHERE NOT EXISTS (SELECT 1 FROM `products` WHERE source = 'presencial' AND name = t.name);
+
+INSERT INTO `products` (`name`, `source`, `price`, `created_at`, `updated_at`)
+SELECT * FROM (SELECT 'Body Beatle', 'presencial', 0, NOW(), NOW()) t
+WHERE NOT EXISTS (SELECT 1 FROM `products` WHERE source = 'presencial' AND name = t.name);
+
+INSERT INTO `products` (`name`, `source`, `price`, `created_at`, `updated_at`)
+SELECT * FROM (SELECT 'Camiseta', 'presencial', 0, NOW(), NOW()) t
+WHERE NOT EXISTS (SELECT 1 FROM `products` WHERE source = 'presencial' AND name = t.name);
+
+INSERT INTO `products` (`name`, `source`, `price`, `created_at`, `updated_at`)
+SELECT * FROM (SELECT 'Camiseta Beatle Panty', 'presencial', 0, NOW(), NOW()) t
+WHERE NOT EXISTS (SELECT 1 FROM `products` WHERE source = 'presencial' AND name = t.name);
+
+INSERT INTO `products` (`name`, `source`, `price`, `created_at`, `updated_at`)
+SELECT * FROM (SELECT 'Polera', 'presencial', 0, NOW(), NOW()) t
+WHERE NOT EXISTS (SELECT 1 FROM `products` WHERE source = 'presencial' AND name = t.name);
+
+INSERT INTO `products` (`name`, `source`, `price`, `created_at`, `updated_at`)
+SELECT * FROM (SELECT 'Polera Beatle', 'presencial', 0, NOW(), NOW()) t
+WHERE NOT EXISTS (SELECT 1 FROM `products` WHERE source = 'presencial' AND name = t.name);
+
+INSERT INTO `products` (`name`, `source`, `price`, `created_at`, `updated_at`)
+SELECT * FROM (SELECT 'Pantalón buzo', 'presencial', 0, NOW(), NOW()) t
+WHERE NOT EXISTS (SELECT 1 FROM `products` WHERE source = 'presencial' AND name = t.name);
+
+INSERT INTO `products` (`name`, `source`, `price`, `created_at`, `updated_at`)
+SELECT * FROM (SELECT 'Ajuar', 'presencial', 0, NOW(), NOW()) t
+WHERE NOT EXISTS (SELECT 1 FROM `products` WHERE source = 'presencial' AND name = t.name);
+
 -- ── Registrar las migraciones como "ejecutadas" en la tabla `migrations` ────
 -- (para que si en el futuro tienes SSH y corres `php artisan migrate`, Laravel
 -- no intente re-ejecutar estas migraciones que ya aplicamos a mano aquí)
@@ -378,6 +436,22 @@ WHERE NOT EXISTS (SELECT 1 FROM `migrations` WHERE migration = t.migration);
 
 INSERT INTO `migrations` (`migration`, `batch`)
 SELECT * FROM (SELECT '2026_07_28_120000_add_color_to_sales_table' AS migration, 6 AS batch) t
+WHERE NOT EXISTS (SELECT 1 FROM `migrations` WHERE migration = t.migration);
+
+INSERT INTO `migrations` (`migration`, `batch`)
+SELECT * FROM (SELECT '2026_08_10_120000_add_image_path_to_products_table' AS migration, 7 AS batch) t
+WHERE NOT EXISTS (SELECT 1 FROM `migrations` WHERE migration = t.migration);
+
+INSERT INTO `migrations` (`migration`, `batch`)
+SELECT * FROM (SELECT '2026_08_10_120100_add_wholesale_price_to_product_variants_table' AS migration, 7 AS batch) t
+WHERE NOT EXISTS (SELECT 1 FROM `migrations` WHERE migration = t.migration);
+
+INSERT INTO `migrations` (`migration`, `batch`)
+SELECT * FROM (SELECT '2026_08_10_120200_seed_pos_initial_products' AS migration, 7 AS batch) t
+WHERE NOT EXISTS (SELECT 1 FROM `migrations` WHERE migration = t.migration);
+
+INSERT INTO `migrations` (`migration`, `batch`)
+SELECT * FROM (SELECT '2026_08_10_130000_add_sort_order_to_product_variants_table' AS migration, 7 AS batch) t
 WHERE NOT EXISTS (SELECT 1 FROM `migrations` WHERE migration = t.migration);
 
 -- ============================================================================

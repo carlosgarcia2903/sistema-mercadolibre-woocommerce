@@ -1,8 +1,8 @@
 # Sistema GYC — Documentación del Proyecto
 
-Sistema de gestión de e-commerce que centraliza órdenes de **WooCommerce**, **Mercado Libre**, **Falabella Seller Center** y **Paris Marketplace** en un único panel. Permite ver ventas, sincronizar órdenes, descargar etiquetas de envío, gestionar inventario y analizar rentabilidad.
+Sistema de gestión de e-commerce que centraliza órdenes de **WooCommerce**, **Mercado Libre**, **Falabella Seller Center**, **Paris Marketplace** y ventas **presenciales** (tienda física) en un único panel. Permite ver ventas, sincronizar órdenes, descargar etiquetas de envío, gestionar inventario, cobrar ventas en tienda y analizar rentabilidad.
 
-> La columna `orders.platform` admite `'woocommerce'`, `'mercadolibre'`, `'falabella'` y `'paris'`. Cada plataforma tiene su servicio cliente y su comando de sync. Ver el detalle de Falabella en [`documentacion/plan-integracion-falabella.md`](documentacion/plan-integracion-falabella.md) y de Paris en [`documentacion/plan-integracion-paris.md`](documentacion/plan-integracion-paris.md).
+> La columna `orders.platform` admite `'woocommerce'`, `'mercadolibre'`, `'falabella'`, `'paris'` y `'presencial'`. Las primeras cuatro sincronizan automáticamente desde APIs externas; `'presencial'` se genera manualmente desde el módulo **Venta en Tienda** (`/pos`, ver sección homónima más abajo). Ver el detalle de Falabella en [`documentacion/plan-integracion-falabella.md`](documentacion/plan-integracion-falabella.md) y de Paris en [`documentacion/plan-integracion-paris.md`](documentacion/plan-integracion-paris.md).
 
 ---
 
@@ -34,10 +34,11 @@ sistemagyc/
 │   │   ├── SyncParis.php            # Artisan: sync:paris
 │   │   └── SyncWooCommerce.php      # Artisan: sync:woocommerce
 │   ├── Http/Controllers/
-│   │   ├── OrdersController.php     # Listado y sync de órdenes
+│   │   ├── OrdersController.php     # Listado y sync de órdenes (agrupa packs ML)
 │   │   ├── ProductsController.php   # Listado de productos
+│   │   ├── PosController.php        # Venta en Tienda: catálogo, carrito, checkout
 │   │   ├── RentabilidadController.php # Dashboard rentabilidad + updateCost
-│   │   ├── ReportsController.php    # Inventario, reportes, export CSV
+│   │   ├── ReportsController.php    # Inventario con edición de costos
 │   │   ├── MlPdfsController.php     # Descarga de etiquetas ML
 │   │   └── MercadoLibreAuthController.php # OAuth callback ML
 │   ├── Mail/
@@ -61,13 +62,11 @@ sistemagyc/
 │   └── Pages/
 │       ├── Dashboard.jsx
 │       ├── Orders/Index.jsx         # Tabla de órdenes con modal de detalle
+│       ├── Pos/Index.jsx            # Venta en Tienda: grilla + carrito + gestión de catálogo
 │       ├── Rentabilidad/Index.jsx   # Dashboard con gráficos Recharts
 │       ├── Reports/
-│       │   ├── Inventory.jsx        # Tabla de productos + edición de costo
-│       │   ├── Orders.jsx
-│       │   └── PlatformSummary.jsx
-│       ├── Products/Index.jsx
-│       └── Pdfs/Index.jsx
+│       │   └── Inventory.jsx        # Tabla de productos + edición de costo
+│       └── Products/Index.jsx
 └── routes/web.php                   # Todas las rutas de la app
 ```
 
@@ -113,16 +112,18 @@ sistemagyc/
 | `total` | decimal(12,2) | `unit_price × quantity` |
 
 ### `products`
-Productos sincronizados desde WooCommerce o ML.
+Productos sincronizados desde WooCommerce/ML, o creados manualmente para Venta en Tienda.
 
 | Columna | Tipo | Descripción |
 |---------|------|-------------|
 | `id` | bigint PK | |
-| `source` | string nullable | `'woocommerce'` o `'mercadolibre'` |
-| `source_id` | string nullable | ID del producto en la plataforma |
+| `source` | string nullable | `'woocommerce'`, `'mercadolibre'` o `'presencial'` (catálogo de tienda física) |
+| `source_id` | string nullable | ID del producto en la plataforma (null si `source='presencial'`) |
 | `sku` | string nullable | |
 | `name` | string | |
-| `price` | decimal(12,2) | Precio de venta general |
+| `description` | text nullable | |
+| `image_path` | string nullable | Ruta en `storage/app/public/pos/…` (foto de producto, solo POS). Servida vía `Storage::disk('public')->url()` — requiere `php artisan storage:link` |
+| `price` | decimal(12,2) | Precio de venta general (no usado por productos `presencial`, que usan `product_variants.sale_price`) |
 | `stock` | integer nullable | |
 
 ### `product_variants`
@@ -132,10 +133,12 @@ Variantes por talla de cada producto. El costo se ingresa manualmente.
 |---------|------|-------------|
 | `id` | bigint PK | |
 | `product_id` | FK → products | |
-| `size` | string nullable | Talla; `null` si el producto no tiene variantes |
+| `size` | string nullable | Talla; `null` si el producto no tiene variantes (ej. productos únicos en POS) |
+| `sort_order` | integer | Orden manual (arrastrable en `/pos`); por defecto 0 |
 | `variant_source_id` | string nullable | ID de la variación en WC/ML |
 | `sku` | string nullable | |
-| `sale_price` | decimal(12,2) | Precio de venta de la talla |
+| `sale_price` | decimal(12,2) | Precio de venta unitario de la talla |
+| `wholesale_price` | decimal(12,2) nullable | Precio especial al comprar 3+ unidades de **la misma talla** en Venta en Tienda (umbral en `PosController::WHOLESALE_MIN_QTY`). `null` = sin precio mayorista |
 | `cost_price` | decimal(12,2) nullable | **Ingresado manualmente** en `/inventario` |
 
 **Clave única:** `(product_id, size)`
@@ -171,6 +174,15 @@ GET  /rentabilidad              → Dashboard de rentabilidad
 PATCH /variants/{variant}/cost  → Guarda cost_price de una variante
 GET  /ml-pdfs/{mlPdf}/download  → Descarga PDF de etiqueta (usada desde la tabla de Órdenes)
 GET  /reports/inventory         → Inventario con edición de costos
+GET  /pos                       → Venta en Tienda: grilla de productos + carrito
+POST /pos/checkout               → Cobra el carrito y genera Order (platform='presencial')
+POST /pos/products               → Crea un producto del catálogo presencial
+POST /pos/products/{product}     → Actualiza nombre/foto de un producto presencial
+DELETE /pos/products/{product}   → Elimina un producto presencial
+POST /pos/products/{product}/variants          → Agrega una talla/precio
+POST /pos/products/{product}/variants/reorder  → Guarda el orden (drag & drop) de las tallas
+PATCH /pos/variants/{variant}    → Edita talla/precio/precio mayorista
+DELETE /pos/variants/{variant}   → Elimina una talla
 GET  /ml/callback               → OAuth callback de ML
 ```
 
@@ -273,6 +285,10 @@ El endpoint es `GET /shipments/{id}/costs`. **No viene en la orden directamente.
 
 Cliente REST para WooCommerce. Usa Basic Auth con consumer key/secret del `.env`.
 
+**Cambio de estado:** `updateOrderStatus($orderId, $status)` actualiza el estado directamente en WooCommerce vía `PUT /wc/v3/orders/{id}`. Se dispara desde el selector de estado en el detalle de una orden WooCommerce en `/orders` (`PATCH /orders/{order}/status` → `OrdersController::updateStatus`), que primero actualiza en WooCommerce y luego localmente — si la API falla, no se guarda el cambio local. El slug que viaja a la API es siempre el original de WooCommerce (`pending`, `processing`, `on-hold`, `completed`, `cancelled`, `refunded`, `failed`); en el frontend ([`Orders/Index.jsx`](resources/js/Pages/Orders/Index.jsx)) esos slugs se traducen a español solo para mostrar (`toSpanishOrderStatus`), nunca se envía ni se guarda el texto traducido.
+
+**Correo de entrega:** al cambiar el estado a `completed` (y no venía ya de `completed`, para no reenviar en cada guardado), `OrdersController::updateStatus` envía [`PedidoEntregadoWooCommerce`](app/Mail/PedidoEntregadoWooCommerce.php) al `customer_email` de la orden, avisando que su pedido fue entregado. Es un correo nuestro, independiente de los correos nativos de WooCommerce (confirmación de compra, etc.), que WooCommerce sigue enviando por su cuenta según su propia configuración de Ajustes → Correos electrónicos — este sistema no los reemplaza ni los controla.
+
 ---
 
 ## Variables de Entorno (`.env`)
@@ -340,6 +356,26 @@ Para mutaciones (guardar costo, cambiar status), se usa `axios.patch()` o `route
 
 ---
 
+## Módulo: Venta en Tienda (POS)
+
+Pantalla (`/pos`, [`PosController`](app/Http/Controllers/PosController.php) → [`Pos/Index.jsx`](resources/js/Pages/Pos/Index.jsx)) para registrar ventas presenciales (tienda física) como una plataforma más del sistema.
+
+**Catálogo:** productos con `source='presencial'` (independientes de WooCommerce/ML). El catálogo inicial (Body, Body Beatle, Camiseta, Camiseta Beatle Panty, Polera, Polera Beatle, Pantalón buzo, Ajuar) se crea vía migración solo con el nombre — talla, precio y foto se cargan después desde la propia pantalla (botón ⚙️ en cada tarjeta), porque son datos del negocio que no correspondía inventar en el código. Un producto sin tallas configuradas (`variants` vacío) abre directo el modal de gestión al hacer clic. Un producto con una sola variante de `size = null` se agrega al carro directo, sin selector de talla (para productos únicos, sin variantes, que se irán agregando después).
+
+**Precio mayorista:** cada `product_variant` puede tener `wholesale_price`. Se aplica cuando el carrito acumula 3+ unidades (`PosController::WHOLESALE_MIN_QTY`) de **la misma talla** — no se mezclan tallas distintas del mismo producto para alcanzar el umbral. El cálculo se hace en el frontend para la vista previa del carrito y se **recalcula en el backend** al cobrar (`PosController::checkout`), nunca se confía en el precio que manda el cliente.
+
+**Orden de tallas:** `product_variants.sort_order` define el orden en que aparecen las tallas en el selector y en el modal de gestión; se reordena arrastrando (`framer-motion` `Reorder`) y se persiste vía `POST /pos/products/{product}/variants/reorder`.
+
+**Al cobrar:** se crea un `Order` con `platform='presencial'`, `platform_order_id` correlativo tipo `PDV-00001` (`PosController::nextOrderNumber()`), `shipping_cost=0`, `sale_fees=0` y `received_amount = total` (no hay comisión ni envío en venta presencial). Cada línea del carrito genera un `Sale` con el precio unitario efectivo ya calculado (normal o mayorista). El nombre del cliente es opcional y no se pide email.
+
+**Dónde se ven estas ventas:** al ser `Order`/`Sale` reales, `presencial` es un tab más en **Órdenes** (`/orders?tab=presencial`) y en **Rentabilidad** (`/rentabilidad?tab=presencial`) — igual que Falabella/Paris, sin botón de "Sincronizar" (no hay API externa, se carga solo al cobrar desde `/pos`). También se suman a los totales agregados del Dashboard (no filtra por plataforma).
+
+**Imágenes:** se guardan en `storage/app/public/pos/` vía `Storage::disk('public')`. Requiere `php artisan storage:link` (symlink `public/storage` → `storage/app/public`) — verificar que exista en producción, ya que ahí no hay migraciones automáticas de este paso.
+
+> **Fuera de alcance (v1):** no se descuenta stock (no hay columna de stock por talla, solo `products.stock` a nivel de producto general, no aplica a POS), no se registra método de pago, no hay boleta/comprobante imprimible.
+
+---
+
 ## Lógica de Negocio Importante
 
 ### Pack de ML
@@ -393,8 +429,9 @@ $saleFees = collect($order_items)->sum(
    - `public/build/` — assets compilados (carpeta completa)
    - `routes/web.php`
    - `database/migrations/` si hay migraciones nuevas
-3. En phpMyAdmin: ejecutar el SQL de migraciones nuevas manualmente
+3. En phpMyAdmin: ejecutar el SQL de migraciones nuevas manualmente (ver [`documentacion/deploy-sql/migraciones-idempotente.sql`](documentacion/deploy-sql/migraciones-idempotente.sql), seguro de re-ejecutar)
 4. Si se modificaron rutas: `php artisan route:clear` (via terminal o script en cPanel)
+5. Si es la primera vez que se sube el módulo de Venta en Tienda (o cualquier feature con subida de imágenes): verificar que exista el symlink `public/storage` → `storage/app/public` (`php artisan storage:link`, o crearlo a mano por FTP/cPanel si no hay SSH) — sin esto las fotos de productos no se ven.
 
 > **Importante:** No importar la base de datos local a producción — ambas tienen órdenes reales. Solo ejecutar el DDL de migraciones nuevas.
 
