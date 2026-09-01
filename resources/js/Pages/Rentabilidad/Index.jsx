@@ -97,11 +97,12 @@ function CustomTooltip({ active, payload, label }) {
 
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function Index({ auth, tab, month, products, daily, summary }) {
-    const isMl = tab === 'mercadolibre' || tab === 'falabella' || tab === 'paris';
+    const isMl = tab === 'mercadolibre' || tab === 'falabella' || tab === 'paris' || tab === 'presencial';
     const tabs = [
         { key: 'mercadolibre', label: '🛒 Mercado Libre' },
         { key: 'falabella',    label: '🟢 Falabella' },
         { key: 'paris',        label: '🔴 Paris' },
+        { key: 'presencial',   label: '🏬 Venta en Tienda' },
         { key: 'woocommerce',  label: '🛍️ WooCommerce' },
     ];
 

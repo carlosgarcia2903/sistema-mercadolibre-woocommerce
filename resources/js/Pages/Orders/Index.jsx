@@ -84,9 +84,53 @@ const PLATFORMS = {
         syncBtn: 'bg-red-600 hover:bg-red-700 focus-visible:ring-red-400',
         header: 'bg-violet-700',
     },
+    presencial: {
+        label: 'Venta en Tienda',
+        short: 'Tienda',
+        emoji: '🏬',
+        color: 'indigo',
+        dot: 'bg-indigo-500',
+        activeTab: 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/30',
+        syncBtn: 'bg-indigo-600 hover:bg-indigo-700 focus-visible:ring-indigo-400',
+        header: 'bg-violet-700',
+    },
 };
 
+// Plataformas que se sincronizan por API (botones de "Sincronizar").
 const TAB_ORDER = ['woocommerce', 'mercadolibre', 'falabella', 'paris'];
+// Todas las plataformas visibles como tab, incluida "presencial" (se carga desde /pos, no se sincroniza).
+const ALL_TABS = [...TAB_ORDER, 'presencial'];
+
+// Estados de WooCommerce (los únicos editables desde acá) — el value es el slug
+// real que WooCommerce espera vía API; el label es solo para mostrar en español,
+// no se envía a WooCommerce ni lo modifica.
+const WOO_STATUSES = [
+    { value: 'pending',    label: 'Pendiente de pago' },
+    { value: 'processing', label: 'Procesando' },
+    { value: 'on-hold',    label: 'En espera' },
+    { value: 'completed',  label: 'Completado' },
+    { value: 'cancelled',  label: 'Cancelado' },
+    { value: 'refunded',   label: 'Reembolsado' },
+    { value: 'failed',     label: 'Fallido' },
+];
+
+// Traducción de estados a español para mostrar en tabla/filtros — cubre WooCommerce
+// y los estados típicos de ML/Falabella/Paris/presencial. Solo texto: el valor
+// real que se guarda y se manda a cada plataforma no cambia.
+const ORDER_STATUS_LABELS = {
+    ...Object.fromEntries(WOO_STATUSES.map((s) => [s.value, s.label])),
+    paid: 'Pagado',
+    confirmed: 'Confirmado',
+    payment_required: 'Pago requerido',
+    payment_in_process: 'Pago en proceso',
+    partially_paid: 'Pago parcial',
+    invalid: 'Inválido',
+};
+
+function toSpanishOrderStatus(status) {
+    if (!status) return '-';
+    return ORDER_STATUS_LABELS[status] || status;
+}
 
 function SpinnerIcon({ className = 'h-3.5 w-3.5' }) {
     return (
@@ -110,40 +154,34 @@ export default function Index({ auth, orders, tab, filters = {}, statusOptions =
     const flash = props.flash || {};
 
     const platform = PLATFORMS[tab] ?? PLATFORMS.woocommerce;
-    const isMarketplace = tab === 'mercadolibre' || tab === 'falabella' || tab === 'paris';
+    const isMarketplace = tab === 'mercadolibre' || tab === 'falabella' || tab === 'paris' || tab === 'presencial';
 
     const [selectedOrder, setSelectedOrder] = useState(null);
     const [syncing, setSyncing] = useState(null);
     const [pendingStatus, setPendingStatus] = useState(null);
     const [updatingStatus, setUpdatingStatus] = useState(false);
     const [statusSaved, setStatusSaved] = useState(false);
+    const [deliveryEmailSent, setDeliveryEmailSent] = useState(false);
     const [filtersOpen, setFiltersOpen] = useState(false);
-
-    const WOO_STATUSES = [
-        { value: 'pending',    label: 'Pendiente de pago' },
-        { value: 'processing', label: 'Procesando' },
-        { value: 'on-hold',    label: 'En espera' },
-        { value: 'completed',  label: 'Completado' },
-        { value: 'cancelled',  label: 'Cancelado' },
-        { value: 'refunded',   label: 'Reembolsado' },
-        { value: 'failed',     label: 'Fallido' },
-    ];
 
     const openOrder = (o) => {
         setSelectedOrder(o);
         setPendingStatus(null);
         setStatusSaved(false);
+        setDeliveryEmailSent(false);
     };
 
     const handleStatusSave = async () => {
         if (!selectedOrder || !pendingStatus || updatingStatus) return;
         setUpdatingStatus(true);
         setStatusSaved(false);
+        setDeliveryEmailSent(false);
         try {
-            await axios.patch(route('orders.updateStatus', selectedOrder.id), { status: pendingStatus });
+            const { data } = await axios.patch(route('orders.updateStatus', selectedOrder.id), { status: pendingStatus });
             setSelectedOrder((prev) => ({ ...prev, status: pendingStatus }));
             setPendingStatus(null);
             setStatusSaved(true);
+            setDeliveryEmailSent(!!data?.email_sent);
             router.reload({ only: ['orders'], preserveScroll: true });
         } catch (e) {
             alert('Error al actualizar el estado: ' + (e.response?.data?.error || e.message));
@@ -268,7 +306,7 @@ export default function Index({ auth, orders, tab, filters = {}, statusOptions =
 
                     {/* Tab bar de plataformas — indicador animado */}
                     <div className="relative flex gap-1 rounded-2xl bg-gray-100 dark:bg-slate-800/60 p-1.5 w-full sm:w-fit overflow-x-auto">
-                        {TAB_ORDER.map((key) => {
+                        {ALL_TABS.map((key) => {
                             const p = PLATFORMS[key];
                             const active = tab === key;
                             return (
@@ -368,7 +406,7 @@ export default function Index({ auth, orders, tab, filters = {}, statusOptions =
                                                 >
                                                     <option value="">Estado (todos)</option>
                                                     {statusOptions.map((status) => (
-                                                        <option key={status} value={status}>{status}</option>
+                                                        <option key={status} value={status}>{toSpanishOrderStatus(status)}</option>
                                                     ))}
                                                 </select>
                                                 {tab === 'mercadolibre' && (
@@ -461,7 +499,7 @@ export default function Index({ auth, orders, tab, filters = {}, statusOptions =
                                                 {o.ordered_at ? new Date(o.ordered_at).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}
                                             </td>
                                             <td className="py-2.5 px-4 text-gray-700 dark:text-gray-200">{o.customer_name || '-'}</td>
-                                            <td className="py-2.5 px-4 text-gray-600 dark:text-gray-300">{o.status || '-'}</td>
+                                            <td className="py-2.5 px-4 text-gray-600 dark:text-gray-300">{toSpanishOrderStatus(o.status)}</td>
                                             {tab === 'mercadolibre' && (
                                                 <td className="py-2.5 px-4">
                                                     <Badge variant={o.delivery_logistic_type === 'self_service' ? 'success' : 'outline'}>
@@ -607,11 +645,14 @@ export default function Index({ auth, orders, tab, filters = {}, statusOptions =
                                                 </button>
                                             )}
                                             {statusSaved && (
-                                                <span className="text-green-300 text-sm font-medium">✓ Estado actualizado</span>
+                                                <span className="text-green-300 text-sm font-medium">
+                                                    ✓ Estado actualizado
+                                                    {deliveryEmailSent && ' · ✉️ Correo de entrega enviado al cliente'}
+                                                </span>
                                             )}
                                         </>
                                     ) : (
-                                        <span className="bg-white/15 px-3 py-1 rounded-lg text-white text-sm font-semibold uppercase">{selectedOrder.status}</span>
+                                        <span className="bg-white/15 px-3 py-1 rounded-lg text-white text-sm font-semibold uppercase">{toSpanishOrderStatus(selectedOrder.status)}</span>
                                     )}
                                 </div>
                             </div>

@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\PedidoEntregadoWooCommerce;
 use App\Models\MlPdf;
 use App\Models\Order;
 use App\Services\WooCommerceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Mail;
 use Inertia\Inertia;
 
 class OrdersController extends Controller
@@ -14,7 +16,7 @@ class OrdersController extends Controller
     public function index(Request $request)
     {
         $tab = $request->query('tab', 'woocommerce');
-        $platform = in_array($tab, ['mercadolibre', 'falabella', 'paris', 'woocommerce'], true) ? $tab : 'woocommerce';
+        $platform = in_array($tab, ['mercadolibre', 'falabella', 'paris', 'presencial', 'woocommerce'], true) ? $tab : 'woocommerce';
         $filters = [
             'order_id' => trim((string) $request->query('order_id', '')),
             'date_from' => (string) $request->query('date_from', ''),
@@ -136,8 +138,8 @@ class OrdersController extends Controller
                 ['path' => $request->url(), 'query' => $request->query()]
             );
         } else {
-            // WooCommerce, Falabella y Paris: paginación estándar (sin packs)
-            $isMarketplace = in_array($platform, ['falabella', 'paris'], true);
+            // WooCommerce, Falabella, Paris y presencial: paginación estándar (sin packs)
+            $isMarketplace = in_array($platform, ['falabella', 'paris', 'presencial'], true);
             $orders = $query
                 ->with(['sales.product', 'latestMlPdf'])
                 ->orderByDesc('ordered_at')
@@ -279,6 +281,7 @@ class OrdersController extends Controller
         }
 
         $newStatus = $request->input('status');
+        $previousStatus = $order->status;
 
         try {
             $wc->updateOrderStatus($order->platform_order_id, $newStatus);
@@ -288,6 +291,18 @@ class OrdersController extends Controller
 
         $order->update(['status' => $newStatus]);
 
-        return response()->json(['status' => $newStatus]);
+        // Al marcar como "completado" se entiende que el producto fue entregado
+        // al cliente — se le notifica por correo (una sola vez, al entrar a ese estado).
+        $emailSent = false;
+        if ($newStatus === 'completed' && $previousStatus !== 'completed' && $order->customer_email) {
+            try {
+                Mail::to($order->customer_email)->send(new PedidoEntregadoWooCommerce($order));
+                $emailSent = true;
+            } catch (\Throwable $e) {
+                // No bloquear la respuesta si falla el envío del correo de entrega.
+            }
+        }
+
+        return response()->json(['status' => $newStatus, 'email_sent' => $emailSent]);
     }
 }

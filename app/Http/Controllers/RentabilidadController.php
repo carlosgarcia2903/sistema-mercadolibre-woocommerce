@@ -18,9 +18,9 @@ class RentabilidadController extends Controller
     public function index(Request $request)
     {
         $tab      = $request->query('tab', 'mercadolibre');
-        $platform = in_array($tab, ['mercadolibre', 'falabella', 'paris', 'woocommerce'], true) ? $tab : 'woocommerce';
-        // ML, Falabella y Paris almacenan received_amount a nivel de orden → usan neto recibido.
-        $isMl     = in_array($platform, ['mercadolibre', 'falabella', 'paris'], true);
+        $platform = in_array($tab, ['mercadolibre', 'falabella', 'paris', 'presencial', 'woocommerce'], true) ? $tab : 'woocommerce';
+        // ML, Falabella, Paris y presencial almacenan received_amount a nivel de orden → usan neto recibido.
+        $isMl     = in_array($platform, ['mercadolibre', 'falabella', 'paris', 'presencial'], true);
 
         $month = $request->query('month', now()->format('Y-m'));
         try {
