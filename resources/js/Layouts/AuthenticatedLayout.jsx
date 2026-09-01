@@ -48,6 +48,9 @@ export default function AuthenticatedLayout({ header, children }) {
                             <NavLink href={route('orders.index')} active={route().current('orders.index')}>
                                 Órdenes
                             </NavLink>
+                            <NavLink href={route('pos.index')} active={route().current('pos.index')}>
+                                Venta en Tienda
+                            </NavLink>
                             <NavLink href={route('rentabilidad.index')} active={route().current('rentabilidad.index')}>
                                 Rentabilidad
                             </NavLink>
@@ -145,6 +148,9 @@ export default function AuthenticatedLayout({ header, children }) {
                                 </ResponsiveNavLink>
                                 <ResponsiveNavLink href={route('orders.index')} active={route().current('orders.index')}>
                                     Órdenes
+                                </ResponsiveNavLink>
+                                <ResponsiveNavLink href={route('pos.index')} active={route().current('pos.index')}>
+                                    Venta en Tienda
                                 </ResponsiveNavLink>
                                 <ResponsiveNavLink href={route('rentabilidad.index')} active={route().current('rentabilidad.index')}>
                                     Rentabilidad

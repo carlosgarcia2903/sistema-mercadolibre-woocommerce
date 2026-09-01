@@ -3,6 +3,7 @@
 use App\Http\Controllers\MercadoLibreAuthController;
 use App\Http\Controllers\MlPdfsController;
 use App\Http\Controllers\OrdersController;
+use App\Http\Controllers\PosController;
 use App\Http\Controllers\ProductsController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RentabilidadController;
@@ -95,6 +96,16 @@ Route::middleware('auth')->group(function () {
     Route::patch('/variants/{variant}/cost', [RentabilidadController::class, 'updateCost'])->name('variants.updateCost');
     Route::get('/ml-pdfs/{mlPdf}/download', [MlPdfsController::class, 'download'])->name('mlpdfs.download');
     Route::get('/reports/inventory', [ReportsController::class, 'inventory'])->name('reports.inventory');
+
+    Route::get('/pos', [PosController::class, 'index'])->name('pos.index');
+    Route::post('/pos/checkout', [PosController::class, 'checkout'])->name('pos.checkout');
+    Route::post('/pos/products', [PosController::class, 'storeProduct'])->name('pos.products.store');
+    Route::post('/pos/products/{product}', [PosController::class, 'updateProduct'])->name('pos.products.update');
+    Route::delete('/pos/products/{product}', [PosController::class, 'destroyProduct'])->name('pos.products.destroy');
+    Route::post('/pos/products/{product}/variants', [PosController::class, 'storeVariant'])->name('pos.variants.store');
+    Route::post('/pos/products/{product}/variants/reorder', [PosController::class, 'reorderVariants'])->name('pos.variants.reorder');
+    Route::patch('/pos/variants/{variant}', [PosController::class, 'updateVariant'])->name('pos.variants.update');
+    Route::delete('/pos/variants/{variant}', [PosController::class, 'destroyVariant'])->name('pos.variants.destroy');
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
