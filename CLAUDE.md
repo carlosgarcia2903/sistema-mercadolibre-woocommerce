@@ -414,28 +414,28 @@ $saleFees = collect($order_items)->sum(
 
 ## Producción
 
-- **Hosting:** HostGator (cPanel)
-- **Usuario cPanel:** `carl1309`
-- **IP:** `69.6.225.245`
-- **Deploy:** FTP manual al directorio del dominio
-- **SSH:** puerto 2222 (requiere habilitación por soporte de HostGator)
-- **DB en producción:** administrar via phpMyAdmin en cPanel
+- **Hosting:** HostGator (cPanel), sitio en `/home2/carl1309/sistema.gycconfecciones.cl` (docroot = `public/`)
+- **Usuario cPanel:** `carl1309` · **IP:** `69.6.225.245`
+- **Deploy:** cPanel → *Git™ Version Control* (repo `sistema-gyc`, clon en `~/repositories/sistema-mercadolibre-woocommerce`, remoto GitHub por SSH con llave del servidor sin passphrase)
+- **Terminal:** cPanel → Terminal (no hay SSH externo). Composer no está instalado: se usa `php -d memory_limit=-1 ~/composer.phar ...`
+- **DB:** MySQL, administrar vía phpMyAdmin
 
-### Pasos para deploy
+### Deploy (cada actualización)
 
-1. Compilar assets: `npm run build`
-2. Subir via FTP:
-   - `app/` — controllers, models, services, commands
-   - `public/build/` — assets compilados (carpeta completa)
-   - `routes/web.php`
-   - `database/migrations/` si hay migraciones nuevas
-3. En phpMyAdmin: ejecutar el SQL de migraciones nuevas manualmente (ver [`documentacion/deploy-sql/migraciones-idempotente.sql`](documentacion/deploy-sql/migraciones-idempotente.sql), seguro de re-ejecutar)
-4. Si se modificaron rutas: `php artisan route:clear` (via terminal o script en cPanel)
-5. Si es la primera vez que se sube el módulo de Venta en Tienda (o cualquier feature con subida de imágenes): verificar que exista el symlink `public/storage` → `storage/app/public` (`php artisan storage:link`, o crearlo a mano por FTP/cPanel si no hay SSH) — sin esto las fotos de productos no se ven.
+1. Local: `npm run build`, commit y `git push origin main` (`public/build` **está versionado**: el servidor no tiene Node).
+2. cPanel → Git Version Control → Administrar → *Pull or Deploy*: **Update from Remote**, verificar que *Last commit* sea el último, luego **Deploy HEAD Commit**. Si el clon no se actualiza: `cd ~/repositories/sistema-mercadolibre-woocommerce && git pull origin main`.
+3. `.cpanel.yml` copia el repo al sitio con `rsync -rlt` (sin permisos), excluyendo `.env`, `storage/`, `vendor/`; crea las carpetas de `storage/`, hace `chmod 755` a la raíz y borra `bootstrap/cache/*.php`.
+4. Si hay migraciones nuevas: `php artisan migrate --force` en la Terminal (o `documentacion/deploy-sql/migraciones-idempotente.sql` en phpMyAdmin, seguro de re-ejecutar).
+5. `php artisan config:clear && php artisan route:clear`.
 
-> **Importante:** No importar la base de datos local a producción — ambas tienen órdenes reales. Solo ejecutar el DDL de migraciones nuevas.
+### Cosas que ya fallaron (no repetir)
 
----
+- **403 en todo el sitio:** la raíz del sitio quedó en permisos 700 (con `rsync -a` se copiaban los permisos del clon). Arreglo: `chmod 755 /home2/carl1309/sistema.gycconfecciones.cl`. Nunca desplegar si el clon está desactualizado: usaría un `.cpanel.yml` viejo.
+- **`vendor/`, `.env` y `storage/` no están en git.** Si se vacía la carpeta del sitio hay que reponerlos: `composer install --no-dev --optimize-autoloader`, el `.env`, y `mkdir` de `storage/...` + `php artisan storage:link`.
+- **Llave SSH de GitHub:** debe estar **sin passphrase** (si no, git falla con `Permission denied (publickey)`) y registrada como *Deploy key* del repo (solo lectura), no en la cuenta personal.
+- **API de Falabella:** Cloudflare bloquea la IP de HostGator (403 con HTML). Requiere que Falabella la agregue a su lista blanca; en local funciona.
+- **Registro (`/register`):** exige `REGISTRATION_CODE` del `.env`; si está vacío, el registro responde 404.
+- No importar la BD local a producción (datos distintos); solo estructura.
 
 ## Convenciones de Código
 
