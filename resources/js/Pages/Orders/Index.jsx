@@ -45,8 +45,8 @@ function formatMoney(value) {
 // Identidad visual por plataforma — un solo lugar para colores, emoji e ícono.
 const PLATFORMS = {
     woocommerce: {
-        label: 'WooCommerce',
-        short: 'WooCommerce',
+        label: 'Sitio Web',
+        short: 'Sitio Web',
         emoji: '🛍️',
         color: 'violet',
         dot: 'bg-violet-500',
@@ -77,11 +77,11 @@ const PLATFORMS = {
     paris: {
         label: 'Paris',
         short: 'Paris',
-        emoji: '🔴',
-        color: 'red',
-        dot: 'bg-red-500',
-        activeTab: 'bg-red-600 text-white shadow-sm shadow-red-600/30',
-        syncBtn: 'bg-red-600 hover:bg-red-700 focus-visible:ring-red-400',
+        emoji: '🔵',
+        color: 'blue',
+        dot: 'bg-blue-500',
+        activeTab: 'bg-blue-600 text-white shadow-sm shadow-blue-600/30',
+        syncBtn: 'bg-blue-600 hover:bg-blue-700 focus-visible:ring-blue-400',
         header: 'bg-violet-700',
     },
     presencial: {

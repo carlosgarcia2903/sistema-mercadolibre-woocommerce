@@ -213,7 +213,7 @@ class OrdersController extends Controller
         try {
             if ($platform === 'woocommerce') {
                 Artisan::call('sync:woocommerce');
-                return back()->with('success', 'WooCommerce sincronizado correctamente.');
+                return back()->with('success', 'Sitio Web sincronizado correctamente.');
             } elseif ($platform === 'mercadolibre') {
                 Artisan::call('sync:mercadolibre');
                 $output = Artisan::output();
@@ -277,7 +277,7 @@ class OrdersController extends Controller
         $request->validate(['status' => 'required|string']);
 
         if ($order->platform !== 'woocommerce') {
-            return response()->json(['error' => 'Solo se pueden actualizar órdenes de WooCommerce.'], 422);
+            return response()->json(['error' => 'Solo se pueden actualizar órdenes del Sitio Web.'], 422);
         }
 
         $newStatus = $request->input('status');
@@ -286,7 +286,7 @@ class OrdersController extends Controller
         try {
             $wc->updateOrderStatus($order->platform_order_id, $newStatus);
         } catch (\Throwable $e) {
-            return response()->json(['error' => 'No se pudo actualizar en WooCommerce: ' . $e->getMessage()], 500);
+            return response()->json(['error' => 'No se pudo actualizar en el Sitio Web: ' . $e->getMessage()], 500);
         }
 
         $order->update(['status' => $newStatus]);

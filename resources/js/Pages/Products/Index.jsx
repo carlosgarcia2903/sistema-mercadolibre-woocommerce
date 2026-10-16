@@ -3,7 +3,7 @@ import { Head, Link } from '@inertiajs/react';
 
 export default function Index({ auth, products, tab }) {
     const tabs = [
-        { key: 'woocommerce', label: 'WooCommerce' },
+        { key: 'woocommerce', label: 'Sitio Web' },
         { key: 'mercadolibre', label: 'Mercado Libre' },
     ];
 

@@ -101,9 +101,9 @@ export default function Index({ auth, tab, month, products, daily, summary }) {
     const tabs = [
         { key: 'mercadolibre', label: '🛒 Mercado Libre' },
         { key: 'falabella',    label: '🟢 Falabella' },
-        { key: 'paris',        label: '🔴 Paris' },
+        { key: 'paris',        label: '🔵 Paris' },
         { key: 'presencial',   label: '🏬 Venta en Tienda' },
-        { key: 'woocommerce',  label: '🛍️ WooCommerce' },
+        { key: 'woocommerce',  label: '🛍️ Sitio Web' },
     ];
 
     const changeMonth = (e) => router.get(route('rentabilidad.index', { tab, month: e.target.value }));

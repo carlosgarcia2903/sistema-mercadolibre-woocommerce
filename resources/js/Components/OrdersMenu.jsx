@@ -3,10 +3,10 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
 
 const MARKETPLACES = [
-    { key: 'woocommerce', label: 'WooCommerce', dot: 'bg-violet-500' },
+    { key: 'woocommerce', label: 'Sitio Web', dot: 'bg-violet-500' },
     { key: 'mercadolibre', label: 'Mercado Libre', dot: 'bg-amber-400' },
     { key: 'falabella', label: 'Falabella', dot: 'bg-green-500' },
-    { key: 'paris', label: 'Paris', dot: 'bg-red-500' },
+    { key: 'paris', label: 'Paris', dot: 'bg-blue-500' },
 ];
 
 // Menú "Órdenes" con un submenú por marketplace. Apunta a /orders?tab=<plataforma>,

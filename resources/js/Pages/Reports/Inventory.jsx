@@ -10,10 +10,10 @@ const fmt = (n) =>
         : new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(n);
 
 const TABS = [
-    { key: 'woocommerce', label: 'WooCommerce', emoji: '🛍️', active: 'bg-violet-600 text-white shadow-sm shadow-violet-600/30' },
+    { key: 'woocommerce', label: 'Sitio Web', emoji: '🛍️', active: 'bg-violet-600 text-white shadow-sm shadow-violet-600/30' },
     { key: 'mercadolibre', label: 'Mercado Libre', emoji: '🛒', active: 'bg-amber-500 text-white shadow-sm shadow-amber-500/30' },
     { key: 'falabella', label: 'Falabella', emoji: '🟢', active: 'bg-green-600 text-white shadow-sm shadow-green-600/30' },
-    { key: 'paris', label: 'Paris', emoji: '🔴', active: 'bg-red-600 text-white shadow-sm shadow-red-600/30' },
+    { key: 'paris', label: 'Paris', emoji: '🔵', active: 'bg-blue-600 text-white shadow-sm shadow-blue-600/30' },
 ];
 
 function StockBadge({ stock }) {

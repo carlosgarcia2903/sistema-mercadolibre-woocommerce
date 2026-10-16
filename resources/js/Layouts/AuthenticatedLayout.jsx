@@ -33,8 +33,8 @@ export default function AuthenticatedLayout({ header, children }) {
                 <aside className="hidden lg:flex w-[260px] flex-col border-r border-[#eaedf1] dark:border-slate-800 bg-white dark:bg-slate-900">
                     <div className="h-[70px] flex items-center px-6 border-b border-[#eaedf1] dark:border-slate-800">
                         <Link href="/" className="flex items-center gap-3">
-                            <ApplicationLogo className="block h-8 w-auto fill-current text-gray-800 dark:text-white" />
-                            <span className="font-semibold text-lg text-[#313b5e] dark:text-white">IDENSTORE</span>
+                            <ApplicationLogo className="block h-12 w-auto fill-current text-gray-800 dark:text-white" />
+                            <span className="font-semibold text-lg text-[#313b5e] dark:text-white">Sistema GC</span>
                         </Link>
                     </div>
                     <div className="px-4 py-4">
