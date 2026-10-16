@@ -1,6 +1,7 @@
 import ApplicationLogo from '@/Components/ApplicationLogo';
 import Dropdown from '@/Components/Dropdown';
 import NavLink from '@/Components/NavLink';
+import OrdersMenu from '@/Components/OrdersMenu';
 import ResponsiveNavLink from '@/Components/ResponsiveNavLink';
 import { Link, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
@@ -45,9 +46,7 @@ export default function AuthenticatedLayout({ header, children }) {
                             <NavLink href={route('products.index')} active={route().current('products.index')}>
                                 Productos
                             </NavLink>
-                            <NavLink href={route('orders.index')} active={route().current('orders.index')}>
-                                Órdenes
-                            </NavLink>
+                            <OrdersMenu />
                             <NavLink href={route('pos.index')} active={route().current('pos.index')}>
                                 Venta en Tienda
                             </NavLink>
@@ -146,9 +145,7 @@ export default function AuthenticatedLayout({ header, children }) {
                                 <ResponsiveNavLink href={route('products.index')} active={route().current('products.index')}>
                                     Productos
                                 </ResponsiveNavLink>
-                                <ResponsiveNavLink href={route('orders.index')} active={route().current('orders.index')}>
-                                    Órdenes
-                                </ResponsiveNavLink>
+                                <OrdersMenu mobile onNavigate={() => setShowingNavigationDropdown(false)} />
                                 <ResponsiveNavLink href={route('pos.index')} active={route().current('pos.index')}>
                                     Venta en Tienda
                                 </ResponsiveNavLink>
