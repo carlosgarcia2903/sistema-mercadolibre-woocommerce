@@ -9,6 +9,13 @@ class RegistrationTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        config(['auth.registration_code' => 'codigo-de-prueba']);
+    }
+
     public function test_registration_screen_can_be_rendered(): void
     {
         $response = $this->get('/register');
@@ -19,6 +26,7 @@ class RegistrationTest extends TestCase
     public function test_new_users_can_register(): void
     {
         $response = $this->post('/register', [
+            'registration_code' => 'codigo-de-prueba',
             'name' => 'Test User',
             'email' => 'test@example.com',
             'password' => 'password',

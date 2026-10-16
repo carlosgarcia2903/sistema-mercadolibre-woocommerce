@@ -15,6 +15,16 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | Código de invitación para registro
+    |--------------------------------------------------------------------------
+    | Solo quien conozca este código puede crear una cuenta. Si está vacío, el
+    | registro público queda cerrado.
+    */
+
+    'registration_code' => env('REGISTRATION_CODE'),
+
     'defaults' => [
         'guard' => env('AUTH_GUARD', 'web'),
         'passwords' => env('AUTH_PASSWORD_BROKER', 'users'),

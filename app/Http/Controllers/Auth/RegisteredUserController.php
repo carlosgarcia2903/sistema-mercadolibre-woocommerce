@@ -21,6 +21,8 @@ class RegisteredUserController extends Controller
      */
     public function create(): Response
     {
+        $this->abortIfRegistrationClosed();
+
         return Inertia::render('Auth/Register');
     }
 
@@ -31,11 +33,20 @@ class RegisteredUserController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
+        $this->abortIfRegistrationClosed();
+
         $request->validate([
+            'registration_code' => ['required', 'string'],
             'name' => 'required|string|max:255',
             'email' => 'required|string|lowercase|email|max:255|unique:'.User::class,
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
+
+        if (!hash_equals((string) config('auth.registration_code'), (string) $request->registration_code)) {
+            throw ValidationException::withMessages([
+                'registration_code' => 'El código de invitación no es válido.',
+            ]);
+        }
 
         $user = User::create([
             'name' => $request->name,
@@ -48,5 +59,13 @@ class RegisteredUserController extends Controller
         Auth::login($user);
 
         return redirect(route('dashboard', absolute: false));
+    }
+
+    /**
+     * Sin código configurado en el .env, nadie puede registrarse.
+     */
+    private function abortIfRegistrationClosed(): void
+    {
+        abort_if(blank(config('auth.registration_code')), 404);
     }
 }

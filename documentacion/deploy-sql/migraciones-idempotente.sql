@@ -340,31 +340,31 @@ SELECT * FROM (SELECT 'Body' AS name, 'presencial' AS source, 0 AS price, NOW() 
 WHERE NOT EXISTS (SELECT 1 FROM `products` WHERE source = 'presencial' AND name = t.name);
 
 INSERT INTO `products` (`name`, `source`, `price`, `created_at`, `updated_at`)
-SELECT * FROM (SELECT 'Body Beatle', 'presencial', 0, NOW(), NOW()) t
+SELECT * FROM (SELECT 'Body Beatle' AS name, 'presencial' AS source, 0 AS price, NOW() AS created_at, NOW() AS updated_at) t
 WHERE NOT EXISTS (SELECT 1 FROM `products` WHERE source = 'presencial' AND name = t.name);
 
 INSERT INTO `products` (`name`, `source`, `price`, `created_at`, `updated_at`)
-SELECT * FROM (SELECT 'Camiseta', 'presencial', 0, NOW(), NOW()) t
+SELECT * FROM (SELECT 'Camiseta' AS name, 'presencial' AS source, 0 AS price, NOW() AS created_at, NOW() AS updated_at) t
 WHERE NOT EXISTS (SELECT 1 FROM `products` WHERE source = 'presencial' AND name = t.name);
 
 INSERT INTO `products` (`name`, `source`, `price`, `created_at`, `updated_at`)
-SELECT * FROM (SELECT 'Camiseta Beatle Panty', 'presencial', 0, NOW(), NOW()) t
+SELECT * FROM (SELECT 'Camiseta Beatle Panty' AS name, 'presencial' AS source, 0 AS price, NOW() AS created_at, NOW() AS updated_at) t
 WHERE NOT EXISTS (SELECT 1 FROM `products` WHERE source = 'presencial' AND name = t.name);
 
 INSERT INTO `products` (`name`, `source`, `price`, `created_at`, `updated_at`)
-SELECT * FROM (SELECT 'Polera', 'presencial', 0, NOW(), NOW()) t
+SELECT * FROM (SELECT 'Polera' AS name, 'presencial' AS source, 0 AS price, NOW() AS created_at, NOW() AS updated_at) t
 WHERE NOT EXISTS (SELECT 1 FROM `products` WHERE source = 'presencial' AND name = t.name);
 
 INSERT INTO `products` (`name`, `source`, `price`, `created_at`, `updated_at`)
-SELECT * FROM (SELECT 'Polera Beatle', 'presencial', 0, NOW(), NOW()) t
+SELECT * FROM (SELECT 'Polera Beatle' AS name, 'presencial' AS source, 0 AS price, NOW() AS created_at, NOW() AS updated_at) t
 WHERE NOT EXISTS (SELECT 1 FROM `products` WHERE source = 'presencial' AND name = t.name);
 
 INSERT INTO `products` (`name`, `source`, `price`, `created_at`, `updated_at`)
-SELECT * FROM (SELECT 'Pantalón buzo', 'presencial', 0, NOW(), NOW()) t
+SELECT * FROM (SELECT 'Pantalón buzo' AS name, 'presencial' AS source, 0 AS price, NOW() AS created_at, NOW() AS updated_at) t
 WHERE NOT EXISTS (SELECT 1 FROM `products` WHERE source = 'presencial' AND name = t.name);
 
 INSERT INTO `products` (`name`, `source`, `price`, `created_at`, `updated_at`)
-SELECT * FROM (SELECT 'Ajuar', 'presencial', 0, NOW(), NOW()) t
+SELECT * FROM (SELECT 'Ajuar' AS name, 'presencial' AS source, 0 AS price, NOW() AS created_at, NOW() AS updated_at) t
 WHERE NOT EXISTS (SELECT 1 FROM `products` WHERE source = 'presencial' AND name = t.name);
 
 -- ── Registrar las migraciones como "ejecutadas" en la tabla `migrations` ────
