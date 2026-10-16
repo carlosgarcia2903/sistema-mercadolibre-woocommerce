@@ -1,0 +1,6 @@
+---
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home2/carl1309/sistema.gycconfecciones.cl
+    - /usr/bin/rsync -a --exclude='.git' --exclude='.env' --exclude='storage' --exclude='vendor' --exclude='node_modules' --exclude='.claude' --exclude='documentacion' ./ $DEPLOYPATH/
+    - /bin/rm -f $DEPLOYPATH/bootstrap/cache/*.php
