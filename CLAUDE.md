@@ -242,13 +242,13 @@ Sincroniza órdenes de WooCommerce desde la API REST de WC.
 
 ### Sync programado (scheduler)
 
-Definido en `routes/console.php`. Todos los syncs corren a las **8:00, 11:00, 13:00, 16:00 y 20:00** (`0 8,11,13,16,20 * * *`), trayendo órdenes desde las 00:00 del día anterior:
+Definido en `routes/console.php`. Todos los syncs corren **cada 30 minutos** (`everyThirtyMinutes()`), trayendo órdenes desde las 00:00 del día anterior:
 
 ```php
-Schedule::command('sync:woocommerce')->cron('0 8,11,13,16,20 * * *');
-Schedule::command('sync:mercadolibre')->cron('0 8,11,13,16,20 * * *');
-Schedule::command('sync:falabella')->cron('0 8,11,13,16,20 * * *');
-Schedule::command('sync:paris')->cron('0 8,11,13,16,20 * * *');
+Schedule::command('sync:woocommerce')->everyThirtyMinutes()->withoutOverlapping();
+Schedule::command('sync:mercadolibre')->everyThirtyMinutes()->withoutOverlapping();
+Schedule::command('sync:falabella')->everyThirtyMinutes()->withoutOverlapping();
+Schedule::command('sync:paris')->everyThirtyMinutes()->withoutOverlapping();
 Schedule::command('ml:refresh-token')->cron('0 */5 * * *');
 ```
 
