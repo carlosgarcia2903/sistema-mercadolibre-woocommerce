@@ -454,6 +454,19 @@ INSERT INTO `migrations` (`migration`, `batch`)
 SELECT * FROM (SELECT '2026_08_10_130000_add_sort_order_to_product_variants_table' AS migration, 7 AS batch) t
 WHERE NOT EXISTS (SELECT 1 FROM `migrations` WHERE migration = t.migration);
 
+-- 2026-10-24: estado interno de bodega (Por preparar / Preparado / Despachado)
+SET @c := (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'fulfillment_status');
+SET @q := IF(@c = 0, "ALTER TABLE `orders` ADD COLUMN `fulfillment_status` VARCHAR(20) NOT NULL DEFAULT 'pending' AFTER `status`, ADD INDEX `orders_fulfillment_status_index` (`fulfillment_status`)", 'SELECT 1');
+PREPARE st FROM @q; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @c := (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'fulfillment_updated_at');
+SET @q := IF(@c = 0, 'ALTER TABLE `orders` ADD COLUMN `fulfillment_updated_at` TIMESTAMP NULL AFTER `fulfillment_status`', 'SELECT 1');
+PREPARE st FROM @q; EXECUTE st; DEALLOCATE PREPARE st;
+
+INSERT INTO `migrations` (`migration`, `batch`)
+SELECT * FROM (SELECT '2026_10_24_120000_add_fulfillment_status_to_orders_table' AS migration, 8 AS batch) t
+WHERE NOT EXISTS (SELECT 1 FROM `migrations` WHERE migration = t.migration);
+
 -- ============================================================================
 -- Fin. Verifica en phpMyAdmin que las tablas orders, sales, product_variants
 -- y ml_pdfs tengan todas las columnas nuevas (pack_id, color, platform, etc.)

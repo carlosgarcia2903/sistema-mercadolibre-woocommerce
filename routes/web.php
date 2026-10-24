@@ -91,6 +91,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/products', [ProductsController::class, 'index'])->name('products.index');
     Route::get('/orders', [OrdersController::class, 'index'])->name('orders.index');
     Route::post('/orders/sync', [OrdersController::class, 'sync'])->name('orders.sync');
+    Route::patch('/orders/{order}/fulfillment', [OrdersController::class, 'updateFulfillment'])->name('orders.updateFulfillment');
     Route::patch('/orders/{order}/status', [OrdersController::class, 'updateStatus'])->name('orders.updateStatus');
     Route::get('/rentabilidad', [RentabilidadController::class, 'index'])->name('rentabilidad.index');
     Route::patch('/variants/{variant}/cost', [RentabilidadController::class, 'updateCost'])->name('variants.updateCost');

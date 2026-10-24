@@ -84,6 +84,8 @@ sistemagyc/
 | `platform_order_id` | string | ID en la plataforma de origen |
 | `pack_id` | string nullable | Agrupa órdenes ML que son una sola compra |
 | `status` | string nullable | `paid`, `cancelled`, `delivered`, etc. |
+| `fulfillment_status` | string(20) | Estado **interno de bodega**: `pending` (por preparar, default), `prepared`, `dispatched` (entregado al repartidor). Independiente del estado de la plataforma. Se cambia con un clic en la columna *Bodega* de `/orders` (`PATCH /orders/{order}/fulfillment`); en packs ML actualiza todas las órdenes del pack |
+| `fulfillment_updated_at` | timestamp nullable | Cuándo se cambió el estado de bodega |
 | `total` | decimal(12,2) | Monto bruto de la orden |
 | `shipping_cost` | decimal(12,2) | Costo de envío neto para el vendedor (puede ser negativo = bonificación Flex) |
 | `sale_fees` | decimal(12,2) | Comisión ML total (sale_fee por unidad × cantidad) |
@@ -169,6 +171,7 @@ GET  /dashboard                 → Dashboard con stats y gráfico 7 días
 GET  /orders                    → Tabla de órdenes (tab: woocommerce | mercadolibre)
 POST /orders/sync               → Dispara Artisan sync en tiempo real
 PATCH /orders/{order}/status    → Actualiza estado en WC (solo WooCommerce)
+PATCH /orders/{order}/fulfillment → Estado interno de bodega (todas las plataformas salvo presencial)
 GET  /products                  → Listado de productos
 GET  /rentabilidad              → Dashboard de rentabilidad
 PATCH /variants/{variant}/cost  → Guarda cost_price de una variante

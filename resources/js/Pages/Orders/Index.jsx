@@ -149,7 +149,66 @@ function SyncIcon({ className = 'h-3.5 w-3.5' }) {
     );
 }
 
-export default function Index({ auth, orders, tab, filters = {}, statusOptions = [], deliveryStatusOptions = [] }) {
+const FULFILLMENT = {
+    pending: {
+        label: 'Por preparar',
+        short: 'Por preparar',
+        next: 'prepared',
+        nextHint: 'Marcar como preparado',
+        chip: 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800',
+        icon: 'M12 8v4l3 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z',
+    },
+    prepared: {
+        label: 'Preparado',
+        short: 'Preparados',
+        next: 'dispatched',
+        nextHint: 'Marcar como entregado al repartidor',
+        chip: 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800',
+        icon: 'M5 13l4 4L19 7',
+    },
+    dispatched: {
+        label: 'Despachado',
+        short: 'Despachados',
+        next: null,
+        nextHint: '',
+        chip: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-800',
+        icon: 'M5 13l4 4L19 7M9 13l4 4L23 7',
+    },
+};
+
+function FulfillmentControl({ status, onChange, busy }) {
+    const cfg = FULFILLMENT[status] ?? FULFILLMENT.pending;
+    return (
+        <div className="inline-flex items-center gap-1">
+            <button
+                type="button"
+                disabled={busy || !cfg.next}
+                onClick={() => cfg.next && onChange(cfg.next)}
+                title={cfg.nextHint || cfg.label}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-semibold whitespace-nowrap transition-colors disabled:cursor-default ${cfg.chip}`}
+            >
+                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d={cfg.icon} />
+                </svg>
+                {cfg.label}
+                {cfg.next && <span className="opacity-60 font-normal">→</span>}
+            </button>
+            {status !== 'pending' && (
+                <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => onChange('pending')}
+                    title="Volver a Por preparar"
+                    className="h-6 w-6 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-slate-800 text-sm leading-none"
+                >
+                    ↺
+                </button>
+            )}
+        </div>
+    );
+}
+
+export default function Index({ auth, orders, tab, filters = {}, statusOptions = [], deliveryStatusOptions = [], fulfillmentCounts = {} }) {
     const { props } = usePage();
     const flash = props.flash || {};
 
@@ -163,6 +222,27 @@ export default function Index({ auth, orders, tab, filters = {}, statusOptions =
     const [statusSaved, setStatusSaved] = useState(false);
     const [deliveryEmailSent, setDeliveryEmailSent] = useState(false);
     const [filtersOpen, setFiltersOpen] = useState(false);
+    const [fulfillmentOverrides, setFulfillmentOverrides] = useState({});
+    const [fulfillmentBusy, setFulfillmentBusy] = useState({});
+
+    const setFulfillment = async (order, next) => {
+        const previous = fulfillmentOverrides[order.id] ?? order.fulfillment_status;
+        setFulfillmentOverrides((p) => ({ ...p, [order.id]: next }));
+        setFulfillmentBusy((p) => ({ ...p, [order.id]: true }));
+        try {
+            await axios.patch(route('orders.updateFulfillment', order.id), { fulfillment_status: next });
+            router.reload({ only: ['fulfillmentCounts'], preserveScroll: true });
+        } catch (e) {
+            setFulfillmentOverrides((p) => ({ ...p, [order.id]: previous }));
+            alert('No se pudo guardar el estado de bodega: ' + (e.response?.data?.message || e.message));
+        } finally {
+            setFulfillmentBusy((p) => ({ ...p, [order.id]: false }));
+        }
+    };
+
+    const filterFulfillment = (value) => {
+        router.get(route('orders.index'), { tab, ...filterForm, fulfillment: value }, { preserveState: true, replace: true });
+    };
 
     const openOrder = (o) => {
         setSelectedOrder(o);
@@ -211,6 +291,7 @@ export default function Index({ auth, orders, tab, filters = {}, statusOptions =
         status: filters.status || '',
         logistic_type: filters.logistic_type || '',
         delivery_status: filters.delivery_status || '',
+        fulfillment: filters.fulfillment || '',
     });
 
     const activeFilterCount = Object.values(filterForm).filter(Boolean).length;
@@ -225,7 +306,7 @@ export default function Index({ auth, orders, tab, filters = {}, statusOptions =
     };
 
     const clearFilters = () => {
-        const reset = { order_id: '', date_from: '', date_to: '', customer: '', status: '', logistic_type: '', delivery_status: '' };
+        const reset = { order_id: '', date_from: '', date_to: '', customer: '', status: '', logistic_type: '', delivery_status: '', fulfillment: '' };
         setFilterForm(reset);
         router.get(route('orders.index'), { tab }, { preserveState: true, replace: true });
     };
@@ -334,6 +415,34 @@ export default function Index({ auth, orders, tab, filters = {}, statusOptions =
                     {/* Card principal */}
                     <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 overflow-hidden">
 
+                        {/* Resumen de bodega: un clic filtra */}
+                        {tab !== 'presencial' && (
+                            <div className="flex flex-wrap items-center gap-2 px-5 py-3 border-b border-gray-100 dark:border-slate-800">
+                                <span className="text-xs font-semibold uppercase tracking-wide text-gray-400 mr-1">Bodega</span>
+                                {Object.entries(FULFILLMENT).map(([key, cfg]) => {
+                                    const active = filters.fulfillment === key;
+                                    return (
+                                        <button
+                                            key={key}
+                                            type="button"
+                                            onClick={() => filterFulfillment(active ? '' : key)}
+                                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition-all ${cfg.chip} ${active ? 'ring-2 ring-offset-1 ring-indigo-400 dark:ring-offset-slate-900' : ''}`}
+                                        >
+                                            {cfg.short}
+                                            <span className="rounded-full bg-white/70 dark:bg-black/20 px-1.5 min-w-[1.25rem] text-center">
+                                                {fulfillmentCounts[key] ?? 0}
+                                            </span>
+                                        </button>
+                                    );
+                                })}
+                                {filters.fulfillment && (
+                                    <button type="button" onClick={() => filterFulfillment('')} className="text-xs text-gray-500 underline ml-1">
+                                        Ver todas
+                                    </button>
+                                )}
+                            </div>
+                        )}
+
                         {/* Barra de filtros colapsable */}
                         <div className="border-b border-gray-100 dark:border-slate-800">
                             <button
@@ -409,6 +518,18 @@ export default function Index({ auth, orders, tab, filters = {}, statusOptions =
                                                         <option key={status} value={status}>{toSpanishOrderStatus(status)}</option>
                                                     ))}
                                                 </select>
+                                                {tab !== 'presencial' && (
+                                                    <select
+                                                        value={filterForm.fulfillment}
+                                                        onChange={(e) => onFilterChange('fulfillment', e.target.value)}
+                                                        className="rounded-lg border-gray-300 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-100 text-sm"
+                                                    >
+                                                        <option value="">Bodega (todos)</option>
+                                                        {Object.entries(FULFILLMENT).map(([key, cfg]) => (
+                                                            <option key={key} value={key}>{cfg.label}</option>
+                                                        ))}
+                                                    </select>
+                                                )}
                                                 {tab === 'mercadolibre' && (
                                                     <select
                                                         value={filterForm.logistic_type}
@@ -462,6 +583,7 @@ export default function Index({ auth, orders, tab, filters = {}, statusOptions =
                                         <th className="py-3 px-4 text-right">Total</th>
                                         {isMarketplace && <th className="py-3 px-4 text-right">Recibido</th>}
                                         {isMarketplace && <th className="py-3 px-4 text-center">Etiqueta</th>}
+                                        {tab !== 'presencial' && <th className="py-3 px-4">Bodega</th>}
                                         <th className="py-3 px-4"></th>
                                     </tr>
                                 </thead>
@@ -469,7 +591,7 @@ export default function Index({ auth, orders, tab, filters = {}, statusOptions =
                                     {orders.data.length === 0 && (
                                         <tr>
                                             <td
-                                                colSpan={4 + (tab === 'mercadolibre' ? 2 : 0) + 1 + (isMarketplace ? 2 : 0) + 1}
+                                                colSpan={4 + (tab === 'mercadolibre' ? 2 : 0) + 1 + (isMarketplace ? 2 : 0) + (tab !== 'presencial' ? 1 : 0) + 1}
                                                 className="py-16 text-center text-gray-400"
                                             >
                                                 <div className="flex flex-col items-center gap-2">
@@ -537,6 +659,15 @@ export default function Index({ auth, orders, tab, filters = {}, statusOptions =
                                                     ) : (
                                                         <span className="text-xs text-gray-400">—</span>
                                                     )}
+                                                </td>
+                                            )}
+                                            {tab !== 'presencial' && (
+                                                <td className="py-2.5 px-4">
+                                                    <FulfillmentControl
+                                                        status={fulfillmentOverrides[o.id] ?? o.fulfillment_status}
+                                                        busy={!!fulfillmentBusy[o.id]}
+                                                        onChange={(next) => setFulfillment(o, next)}
+                                                    />
                                                 </td>
                                             )}
                                             <td className="py-2.5 px-4 text-right">

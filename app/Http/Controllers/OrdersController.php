@@ -13,6 +13,10 @@ use Inertia\Inertia;
 
 class OrdersController extends Controller
 {
+    private const FULFILLMENT_STATUSES = ['pending', 'prepared', 'dispatched'];
+
+    private const INACTIVE_STATUSES = ['cancelled', 'canceled', 'refunded', 'returned', 'failed'];
+
     public function index(Request $request)
     {
         $tab = $request->query('tab', 'woocommerce');
@@ -25,6 +29,7 @@ class OrdersController extends Controller
             'status' => (string) $request->query('status', ''),
             'logistic_type' => (string) $request->query('logistic_type', ''),
             'delivery_status' => (string) $request->query('delivery_status', ''),
+            'fulfillment' => (string) $request->query('fulfillment', ''),
         ];
 
         $query = Order::query()->where('platform', $platform);
@@ -43,6 +48,9 @@ class OrdersController extends Controller
         }
         if ($filters['status'] !== '') {
             $query->where('status', $filters['status']);
+        }
+        if (in_array($filters['fulfillment'], self::FULFILLMENT_STATUSES, true)) {
+            $query->where('fulfillment_status', $filters['fulfillment']);
         }
 
         if ($platform === 'mercadolibre' && $filters['logistic_type'] !== '') {
@@ -109,6 +117,9 @@ class OrdersController extends Controller
                     'platform_order_id'      => $isPack ? (string) $first->pack_id : $first->platform_order_id,
                     'is_pack'                => $isPack,
                     'status'                 => $first->status,
+                    'fulfillment_status'     => $first->fulfillment_status ?? 'pending',
+                    'fulfillment_updated_at' => optional($first->fulfillment_updated_at)->toDateTimeString(),
+                    'pack_order_count'       => count($packOrders),
                     'total'                  => $totalAmount,
                     'sale_fees'              => $saleFees,
                     'shipping_cost'          => $shippingCost,
@@ -153,6 +164,8 @@ class OrdersController extends Controller
                         'platform_order_id'      => $order->platform_order_id,
                         'is_pack'                => false,
                         'status'                 => $order->status,
+                        'fulfillment_status'     => $order->fulfillment_status ?? 'pending',
+                        'fulfillment_updated_at' => optional($order->fulfillment_updated_at)->toDateTimeString(),
                         'total'                  => $order->total,
                         'sale_fees'              => $isMarketplace ? (float) $order->sale_fees : 0,
                         'shipping_cost'          => $isMarketplace ? (float) $order->shipping_cost : 0,
@@ -197,7 +210,19 @@ class OrdersController extends Controller
                 ->pluck('shipment_status')
             : collect();
 
+        $fulfillmentCounts = Order::query()
+            ->where('platform', $platform)
+            ->where(fn ($q) => $q->whereNull('status')->orWhereNotIn('status', self::INACTIVE_STATUSES))
+            ->selectRaw("fulfillment_status, COUNT(DISTINCT COALESCE(pack_id, CAST(id AS CHAR))) as total")
+            ->groupBy('fulfillment_status')
+            ->pluck('total', 'fulfillment_status');
+
         return Inertia::render('Orders/Index', [
+            'fulfillmentCounts' => [
+                'pending' => (int) ($fulfillmentCounts['pending'] ?? 0),
+                'prepared' => (int) ($fulfillmentCounts['prepared'] ?? 0),
+                'dispatched' => (int) ($fulfillmentCounts['dispatched'] ?? 0),
+            ],
             'tab' => $tab,
             'orders' => $orders,
             'filters' => $filters,
@@ -304,5 +329,24 @@ class OrdersController extends Controller
         }
 
         return response()->json(['status' => $newStatus, 'email_sent' => $emailSent]);
+    }
+
+    public function updateFulfillment(Request $request, Order $order)
+    {
+        $validated = $request->validate([
+            'fulfillment_status' => ['required', 'in:' . implode(',', self::FULFILLMENT_STATUSES)],
+        ]);
+
+        // Un pack de ML es una sola compra/paquete: se actualizan todas sus órdenes juntas.
+        $query = $order->pack_id
+            ? Order::where('platform', $order->platform)->where('pack_id', $order->pack_id)
+            : Order::where('id', $order->id);
+
+        $query->update([
+            'fulfillment_status' => $validated['fulfillment_status'],
+            'fulfillment_updated_at' => $validated['fulfillment_status'] === 'pending' ? null : now(),
+        ]);
+
+        return response()->json(['fulfillment_status' => $validated['fulfillment_status']]);
     }
 }

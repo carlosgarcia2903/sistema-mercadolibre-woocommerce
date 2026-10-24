@@ -11,6 +11,8 @@ class Order extends Model
         'platform_order_id',
         'pack_id',
         'status',
+        'fulfillment_status',
+        'fulfillment_updated_at',
         'total',
         'shipping_cost',
         'sale_fees',
@@ -24,6 +26,7 @@ class Order extends Model
 
     protected $casts = [
         'ordered_at' => 'datetime',
+        'fulfillment_updated_at' => 'datetime',
         'raw_json' => 'array',
     ];
 
