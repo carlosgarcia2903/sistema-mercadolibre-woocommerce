@@ -224,7 +224,7 @@ class OrdersController extends Controller
 
                 $mensaje = 'MercadoLibre sincronizado correctamente.';
                 if ($emailEnviado && $cantidadNuevas > 0) {
-                    $mensaje .= " ✉️ Se encontraron {$cantidadNuevas} orden(es) nueva(s) — correo enviado a carlosgarcia.2903@gmail.com.";
+                    $mensaje .= " ✉️ Se encontraron {$cantidadNuevas} orden(es) nueva(s) — correo enviado a " . config('mail.orders_to') . ".";
                 } else {
                     $mensaje .= ' Sin órdenes nuevas, no se envió correo.';
                 }
@@ -239,7 +239,7 @@ class OrdersController extends Controller
 
                 $mensaje = 'Falabella sincronizado correctamente.';
                 if ($cantidadNuevas > 0) {
-                    $mensaje .= " ✉️ Se encontraron {$cantidadNuevas} orden(es) nueva(s) — correo enviado a carlosgarcia.2903@gmail.com.";
+                    $mensaje .= " ✉️ Se encontraron {$cantidadNuevas} orden(es) nueva(s) — correo enviado a " . config('mail.orders_to') . ".";
                 } else {
                     $mensaje .= ' Sin órdenes nuevas, no se envió correo.';
                 }
@@ -254,7 +254,7 @@ class OrdersController extends Controller
 
                 $mensaje = 'Paris Marketplace sincronizado correctamente.';
                 if ($cantidadNuevas > 0) {
-                    $mensaje .= " ✉️ Se encontraron {$cantidadNuevas} orden(es) nueva(s) — correo enviado a carlosgarcia.2903@gmail.com.";
+                    $mensaje .= " ✉️ Se encontraron {$cantidadNuevas} orden(es) nueva(s) — correo enviado a " . config('mail.orders_to') . ".";
                 } else {
                     $mensaje .= ' Sin órdenes nuevas, no se envió correo.';
                 }

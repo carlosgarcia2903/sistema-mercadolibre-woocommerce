@@ -208,7 +208,7 @@ class SyncParis extends Command
         foreach ($correosNuevos as $datos) {
             try {
                 $this->info("Enviando correo para orden {$datos['order_id']} (" . count($datos['items']) . " ítem(s))...");
-                Mail::to('carlosgarcia.2903@gmail.com')->send(new NuevaOrdenParis($datos));
+                Mail::to(config('mail.orders_to'))->send(new NuevaOrdenParis($datos));
             } catch (\Throwable $e) {
                 $this->error("No se pudo enviar correo de orden {$datos['order_id']}: " . $e->getMessage());
             }

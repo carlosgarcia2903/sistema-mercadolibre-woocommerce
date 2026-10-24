@@ -212,7 +212,7 @@ class SyncMercadoLibre extends Command
                     if ($etiquetaRecienDisponible && !$esNueva) {
                         try {
                             $this->info("Etiqueta recién disponible para orden #{$o['id']}, enviando correo...");
-                            Mail::to('carlosgarcia.2903@gmail.com')
+                            Mail::to(config('mail.orders_to'))
                                 ->send(new EtiquetaDisponibleMl([
                                     'order_id'      => $o['id'],
                                     'customer'      => $o['buyer']['nickname'] ?? null,
@@ -262,7 +262,7 @@ class SyncMercadoLibre extends Command
         foreach ($correosNuevos as $packKey => $datos) {
             try {
                 $this->info("Enviando correo para {$packKey} (" . count($datos['items']) . " ítem(s))...");
-                Mail::to('carlosgarcia.2903@gmail.com')->send(new NuevasOrdenesMl([$datos]));
+                Mail::to(config('mail.orders_to'))->send(new NuevasOrdenesMl([$datos]));
             } catch (\Throwable $e) {
                 $this->error("No se pudo enviar correo de {$packKey}: " . $e->getMessage());
             }

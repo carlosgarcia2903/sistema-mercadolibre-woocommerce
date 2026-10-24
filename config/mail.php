@@ -110,6 +110,8 @@ return [
     |
     */
 
+    'orders_to' => env('ORDERS_NOTIFY_EMAIL', 'gcgroup.ventas@gmail.com'),
+
     'from' => [
         'address' => env('MAIL_FROM_ADDRESS', 'hello@example.com'),
         'name' => env('MAIL_FROM_NAME', env('APP_NAME', 'Laravel')),
