@@ -226,7 +226,7 @@ export default function Index({ auth, orders, tab, filters = {}, statusOptions =
         setFulfillmentBusy((p) => ({ ...p, [order.id]: true }));
         try {
             await axios.patch(route('orders.updateFulfillment', order.id), { fulfillment_status: next });
-            router.reload({ only: ['fulfillmentCounts'], preserveScroll: true });
+            router.reload({ only: ['fulfillmentCounts', 'pendingOrders'], preserveScroll: true });
         } catch (e) {
             setFulfillmentOverrides((p) => ({ ...p, [order.id]: previous }));
             alert('No se pudo guardar el estado de bodega: ' + (e.response?.data?.message || e.message));

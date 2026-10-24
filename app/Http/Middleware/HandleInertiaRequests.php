@@ -34,6 +34,7 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $request->user(),
             ],
+            'pendingOrders' => fn () => $request->user() ? \App\Models\Order::pendingFulfillmentByPlatform() : null,
             'flash' => [
                 'success' => $request->session()->get('success'),
                 'error'   => $request->session()->get('error'),

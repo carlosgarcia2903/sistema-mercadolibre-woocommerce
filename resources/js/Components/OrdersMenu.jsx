@@ -9,10 +9,23 @@ const MARKETPLACES = [
     { key: 'paris', label: 'Paris', dot: 'bg-blue-500' },
 ];
 
+export function PendingBadge({ count, className = '' }) {
+    if (!count) return null;
+    return (
+        <span
+            title={`${count} por preparar`}
+            className={`inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-bold leading-none text-white ${className}`}
+        >
+            {count > 99 ? '99+' : count}
+        </span>
+    );
+}
+
 // Menú "Órdenes" con un submenú por marketplace. Apunta a /orders?tab=<plataforma>,
 // los mismos tabs que ya existen dentro de la página de Órdenes.
 export default function OrdersMenu({ onNavigate, mobile = false }) {
-    const { url } = usePage();
+    const { url, props } = usePage();
+    const pending = props.pendingOrders ?? { total: 0, byPlatform: {} };
     const onOrders = route().current('orders.index');
     const currentTab = onOrders
         ? new URLSearchParams(url.split('?')[1] || '').get('tab') || 'woocommerce'
@@ -45,6 +58,7 @@ export default function OrdersMenu({ onNavigate, mobile = false }) {
                     className={parentClass}
                 >
                     Órdenes
+                    <PendingBadge count={pending.total} className="ml-2" />
                 </Link>
                 <button
                     type="button"
@@ -92,6 +106,7 @@ export default function OrdersMenu({ onNavigate, mobile = false }) {
                                     >
                                         <span className={`h-2 w-2 rounded-full ${m.dot}`} />
                                         {m.label}
+                                        <PendingBadge count={pending.byPlatform?.[m.key]} className="ml-auto" />
                                     </Link>
                                 );
                             })}

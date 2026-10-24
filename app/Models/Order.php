@@ -30,6 +30,27 @@ class Order extends Model
         'raw_json' => 'array',
     ];
 
+    // Órdenes sin preparar por plataforma (packs ML cuentan como 1). Excluye canceladas/devueltas y venta presencial.
+    public static function pendingFulfillmentByPlatform(): array
+    {
+        $platforms = ['woocommerce', 'mercadolibre', 'falabella', 'paris'];
+
+        $rows = static::query()
+            ->whereIn('platform', $platforms)
+            ->where('fulfillment_status', 'pending')
+            ->where(fn ($q) => $q->whereNull('status')->orWhereNotIn('status', ['cancelled', 'canceled', 'refunded', 'returned', 'failed']))
+            ->selectRaw('platform, COUNT(DISTINCT COALESCE(pack_id, CAST(id AS CHAR))) as total')
+            ->groupBy('platform')
+            ->pluck('total', 'platform');
+
+        $byPlatform = [];
+        foreach ($platforms as $p) {
+            $byPlatform[$p] = (int) ($rows[$p] ?? 0);
+        }
+
+        return ['total' => array_sum($byPlatform), 'byPlatform' => $byPlatform];
+    }
+
     public function sales()
     {
         return $this->hasMany(Sale::class);
