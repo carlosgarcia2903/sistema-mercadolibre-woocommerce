@@ -125,11 +125,21 @@ const ORDER_STATUS_LABELS = {
     payment_in_process: 'Pago en proceso',
     partially_paid: 'Pago parcial',
     invalid: 'Inválido',
+    shipped: 'Enviado',
+    delivered: 'Entregado',
+    ready_to_ship: 'Listo para enviar',
+    canceled: 'Cancelado',
+    returned: 'Devuelto',
+    pending_payment: 'Pago pendiente',
+    return_shipped_by_customer: 'Devolución enviada por el cliente',
+    return_waiting_for_approval: 'Devolución en revisión',
+    return_rejected: 'Devolución rechazada',
+    failed_delivery: 'Entrega fallida',
 };
 
 function toSpanishOrderStatus(status) {
     if (!status) return '-';
-    return ORDER_STATUS_LABELS[status] || status;
+    return ORDER_STATUS_LABELS[status] || status.replaceAll('_', ' ');
 }
 
 function SpinnerIcon({ className = 'h-3.5 w-3.5' }) {
