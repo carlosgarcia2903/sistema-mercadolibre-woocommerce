@@ -189,32 +189,17 @@ const FULFILLMENT = {
 function FulfillmentControl({ status, onChange, busy }) {
     const cfg = FULFILLMENT[status] ?? FULFILLMENT.pending;
     return (
-        <div className="inline-flex items-center gap-1">
-            <button
-                type="button"
-                disabled={busy || !cfg.next}
-                onClick={() => cfg.next && onChange(cfg.next)}
-                title={cfg.nextHint || cfg.label}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-semibold whitespace-nowrap transition-colors disabled:cursor-default ${cfg.chip}`}
-            >
-                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-                    <path strokeLinecap="round" strokeLinejoin="round" d={cfg.icon} />
-                </svg>
-                {cfg.label}
-                {cfg.next && <span className="opacity-60 font-normal">→</span>}
-            </button>
-            {status !== 'pending' && (
-                <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => onChange('pending')}
-                    title="Volver a Por preparar"
-                    className="h-6 w-6 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-slate-800 text-sm leading-none"
-                >
-                    ↺
-                </button>
-            )}
-        </div>
+        <select
+            value={status}
+            disabled={busy}
+            onChange={(e) => onChange(e.target.value)}
+            aria-label="Estado de bodega"
+            className={`rounded-lg border py-1 pl-2.5 pr-7 text-xs font-semibold cursor-pointer focus:ring-2 focus:ring-indigo-400 disabled:opacity-60 ${cfg.chip}`}
+        >
+            {Object.entries(FULFILLMENT).map(([key, c]) => (
+                <option key={key} value={key}>{c.label}</option>
+            ))}
+        </select>
     );
 }
 
