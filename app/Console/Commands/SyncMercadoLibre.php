@@ -83,6 +83,7 @@ class SyncMercadoLibre extends Command
                         'shipping_cost'   => $shippingCost,
                         'sale_fees'       => $saleFees,
                         'received_amount' => $received,
+                        'refunded_amount' => Order::refundedFromMl($o),
                         'currency'        => $o['currency_id'] ?? 'CLP',
                         'ordered_at'      => isset($o['date_created']) ? Carbon::parse($o['date_created']) : null,
                         'customer_name'   => $o['buyer']['nickname'] ?? null,

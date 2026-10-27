@@ -159,6 +159,28 @@ function SyncIcon({ className = 'h-3.5 w-3.5' }) {
     );
 }
 
+const CANCELLED = ['cancelled', 'canceled', 'refunded', 'returned', 'failed'];
+
+function claimTone(c) {
+    if (c.status === 'opened') {
+        return c.needs_action
+            ? 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800'
+            : 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800';
+    }
+    return 'bg-gray-50 text-gray-600 border-gray-200 dark:bg-slate-800 dark:text-gray-300 dark:border-slate-700';
+}
+
+function ClaimBadge({ claim }) {
+    const label = claim.status === 'opened'
+        ? (claim.has_return ? 'Devolución en curso' : claim.needs_action ? 'Reclamo: te toca actuar' : 'Reclamo abierto')
+        : (claim.has_return ? 'Devolución cerrada' : 'Reclamo cerrado');
+    return (
+        <span title={claim.summary} className={`inline-flex items-center px-2 py-0.5 rounded-md border text-xs font-semibold whitespace-nowrap ${claimTone(claim)}`}>
+            ⚠ {label}
+        </span>
+    );
+}
+
 const FULFILLMENT = {
     pending: {
         label: 'Por preparar',
@@ -616,7 +638,14 @@ export default function Index({ auth, orders, tab, filters = {}, statusOptions =
                                                 {o.ordered_at ? new Date(o.ordered_at).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}
                                             </td>
                                             <td className="py-2.5 px-4 text-gray-700 dark:text-gray-200">{o.customer_name || '-'}</td>
-                                            <td className="py-2.5 px-4 text-gray-600 dark:text-gray-300">{toSpanishOrderStatus(o.status)}</td>
+                                            <td className="py-2.5 px-4 text-gray-600 dark:text-gray-300">
+                                                <span className={CANCELLED.includes((o.status || '').toLowerCase()) ? 'font-semibold text-red-600 dark:text-red-400' : ''}>{toSpanishOrderStatus(o.status)}</span>
+                                                {(o.claims || []).length > 0 && (
+                                                    <div className="mt-1 flex flex-col items-start gap-1">
+                                                        {o.claims.map((c) => <ClaimBadge key={c.id} claim={c} />)}
+                                                    </div>
+                                                )}
+                                            </td>
                                             {tab === 'mercadolibre' && (
                                                 <td className="py-2.5 px-4">
                                                     <Badge variant={o.delivery_logistic_type === 'self_service' ? 'success' : 'outline'}>
@@ -631,7 +660,12 @@ export default function Index({ auth, orders, tab, filters = {}, statusOptions =
                                                     </Badge>
                                                 </td>
                                             )}
-                                            <td className="py-2.5 px-4 text-right text-gray-700 dark:text-gray-200">{formatMoney(o.total)}</td>
+                                            <td className="py-2.5 px-4 text-right text-gray-700 dark:text-gray-200">
+                                                <span className={CANCELLED.includes((o.status || '').toLowerCase()) ? 'line-through text-gray-400' : ''}>{formatMoney(o.total)}</span>
+                                                {o.refunded_amount > 0 && (
+                                                    <div className="text-xs font-semibold text-red-600 dark:text-red-400" title="Dinero devuelto al comprador">− {formatMoney(o.refunded_amount)} devuelto</div>
+                                                )}
+                                            </td>
                                             {isMarketplace && (
                                                 <td className="py-2.5 px-4 text-right font-semibold text-green-700 dark:text-green-400">
                                                     {formatMoney(o.total_received)}
@@ -835,6 +869,34 @@ export default function Index({ auth, orders, tab, filters = {}, statusOptions =
                                         </div>
                                     );
                                 })()}
+
+                                {/* Reclamos y devoluciones de esta venta */}
+                                {(selectedOrder.claims || []).length > 0 && (
+                                    <div className="rounded-xl border border-amber-200 bg-amber-50/60 dark:border-amber-800 dark:bg-amber-900/10 p-4 text-sm space-y-3">
+                                        <p className="text-xs font-bold uppercase tracking-wide text-amber-800 dark:text-amber-300">Reclamos y devoluciones de esta venta</p>
+                                        {selectedOrder.claims.map((c) => (
+                                            <div key={c.id} className="rounded-lg bg-white dark:bg-slate-900 border border-amber-100 dark:border-slate-800 p-3 space-y-1.5">
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <ClaimBadge claim={c} />
+                                                    <span className="text-xs text-gray-400">Reclamo #{c.claim_id}</span>
+                                                </div>
+                                                <p className="text-gray-800 dark:text-gray-100">{c.summary}</p>
+                                                <p className="text-xs text-gray-500">
+                                                    Abierto el {c.opened_at ? new Date(c.opened_at).toLocaleDateString('es-CL') : '-'}
+                                                    {c.closed_at ? ` · cerrado el ${new Date(c.closed_at).toLocaleDateString('es-CL')}` : ''}
+                                                </p>
+                                            </div>
+                                        ))}
+                                        {selectedOrder.refunded_amount > 0 && (
+                                            <p className="text-sm font-semibold text-red-700 dark:text-red-300">Dinero devuelto al comprador: {formatMoney(selectedOrder.refunded_amount)} (ya está descontado de Rentabilidad y del Dashboard).</p>
+                                        )}
+                                    </div>
+                                )}
+                                {(selectedOrder.claims || []).length === 0 && selectedOrder.refunded_amount > 0 && (
+                                    <div className="rounded-xl border border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/10 p-3 text-sm text-red-700 dark:text-red-300">
+                                        Dinero devuelto al comprador: <b>{formatMoney(selectedOrder.refunded_amount)}</b>. Ya está descontado de Rentabilidad y del Dashboard.
+                                    </div>
+                                )}
 
                                 {/* MercadoLibre: cliente + tipo envío */}
                                 {tab === 'mercadolibre' && (

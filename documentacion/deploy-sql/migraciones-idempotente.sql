@@ -524,6 +524,42 @@ INSERT INTO `migrations` (`migration`, `batch`)
 SELECT * FROM (SELECT '2026_10_27_120000_create_facturacion_tables' AS migration, 8 AS batch) t
 WHERE NOT EXISTS (SELECT 1 FROM `migrations` WHERE migration = t.migration);
 
+-- 2026-10-28: reembolsos en órdenes + reclamos de Mercado Libre
+SET @c := (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'refunded_amount');
+SET @q := IF(@c = 0, 'ALTER TABLE `orders` ADD COLUMN `refunded_amount` DECIMAL(12,2) NOT NULL DEFAULT 0 AFTER `received_amount`', 'SELECT 1');
+PREPARE st FROM @q; EXECUTE st; DEALLOCATE PREPARE st;
+
+CREATE TABLE IF NOT EXISTS `ml_claims` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `claim_id` VARCHAR(30) NOT NULL,
+  `order_id` BIGINT UNSIGNED NULL,
+  `resource` VARCHAR(20) NULL,
+  `resource_id` VARCHAR(30) NULL,
+  `type` VARCHAR(30) NULL,
+  `stage` VARCHAR(20) NULL,
+  `status` VARCHAR(20) NULL,
+  `reason_id` VARCHAR(30) NULL,
+  `needs_action` TINYINT(1) NOT NULL DEFAULT 0,
+  `resolution_reason` VARCHAR(255) NULL,
+  `resolution_benefited` VARCHAR(255) NULL,
+  `resolution_closed_by` VARCHAR(255) NULL,
+  `return_status` VARCHAR(255) NULL,
+  `return_subtype` VARCHAR(255) NULL,
+  `opened_at` TIMESTAMP NULL,
+  `last_updated_at` TIMESTAMP NULL,
+  `raw` JSON NULL,
+  `created_at` TIMESTAMP NULL,
+  `updated_at` TIMESTAMP NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `ml_claims_claim_id_unique` (`claim_id`),
+  KEY `ml_claims_status_needs_action_index` (`status`,`needs_action`),
+  CONSTRAINT `ml_claims_order_id_foreign` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE SET NULL
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO `migrations` (`migration`, `batch`)
+SELECT * FROM (SELECT '2026_10_28_120000_add_refunds_and_ml_claims' AS migration, 9 AS batch) t
+WHERE NOT EXISTS (SELECT 1 FROM `migrations` WHERE migration = t.migration);
+
 -- ============================================================================
 -- Fin. Verifica en phpMyAdmin que las tablas orders, sales, product_variants
 -- y ml_pdfs tengan todas las columnas nuevas (pack_id, color, platform, etc.)

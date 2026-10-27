@@ -46,7 +46,8 @@ Route::get('/dashboard', function () {
         $days->push(now()->subDays($i)->format('Y-m-d'));
     }
 
-    $orderSeries = \App\Models\Order::selectRaw('DATE(ordered_at) as date, COUNT(*) as orders, SUM(total) as sales')
+    $orderSeries = \App\Models\Order::counted()
+        ->selectRaw('DATE(ordered_at) as date, COUNT(*) as orders, SUM(' . \App\Models\Order::EFFECTIVE_TOTAL_SQL . ') as sales')
         ->where('ordered_at', '>=', now()->subDays(6)->startOfDay())
         ->groupBy('date')
         ->orderBy('date')
@@ -64,10 +65,10 @@ Route::get('/dashboard', function () {
 
     return Inertia::render('Dashboard', [
         'stats' => [
-            'orders_today' => \App\Models\Order::where('ordered_at', '>=', $today)->count(),
-            'orders_week' => \App\Models\Order::where('ordered_at', '>=', $week)->count(),
-            'sales_today' => (float) \App\Models\Order::where('ordered_at', '>=', $today)->sum('total'),
-            'sales_week' => (float) \App\Models\Order::where('ordered_at', '>=', $week)->sum('total'),
+            'orders_today' => \App\Models\Order::counted()->where('ordered_at', '>=', $today)->count(),
+            'orders_week' => \App\Models\Order::counted()->where('ordered_at', '>=', $week)->count(),
+            'sales_today' => (float) \App\Models\Order::counted()->where('ordered_at', '>=', $today)->sum(\Illuminate\Support\Facades\DB::raw(\App\Models\Order::EFFECTIVE_TOTAL_SQL)),
+            'sales_week' => (float) \App\Models\Order::counted()->where('ordered_at', '>=', $week)->sum(\Illuminate\Support\Facades\DB::raw(\App\Models\Order::EFFECTIVE_TOTAL_SQL)),
             'low_stock' => \App\Models\Product::whereNotNull('stock')->where('stock', '<=', 5)->count(),
         ],
         'chart' => $chart,
@@ -96,6 +97,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/rentabilidad', [RentabilidadController::class, 'index'])->name('rentabilidad.index');
     Route::patch('/variants/{variant}/cost', [RentabilidadController::class, 'updateCost'])->name('variants.updateCost');
     Route::get('/ml-pdfs/{mlPdf}/download', [MlPdfsController::class, 'download'])->name('mlpdfs.download');
+    Route::get('/reclamos', [\App\Http\Controllers\ClaimsController::class, 'index'])->name('claims.index');
     Route::get('/facturacion', [\App\Http\Controllers\FacturacionController::class, 'index'])->name('facturacion.index');
     Route::post('/facturacion/sync', [\App\Http\Controllers\FacturacionController::class, 'sync'])->middleware('throttle:10,1')->name('facturacion.sync');
     Route::get('/facturacion/export', [\App\Http\Controllers\FacturacionController::class, 'export'])->name('facturacion.export');

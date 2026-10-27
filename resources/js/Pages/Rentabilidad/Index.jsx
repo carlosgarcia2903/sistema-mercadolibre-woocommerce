@@ -194,6 +194,14 @@ export default function Index({ auth, tab, month, products, daily, summary }) {
                         />
                     </div>
 
+                    {(summary.total_refunded > 0 || summary.cancelled_orders > 0) && (
+                        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+                            <b>Ajustado por devoluciones y cancelaciones:</b>{' '}
+                            {summary.cancelled_orders > 0 && <>{summary.cancelled_orders} orden(es) cancelada(s) o devuelta(s) no se cuentan. </>}
+                            {summary.total_refunded > 0 && <>Se descontaron {fmt(summary.total_refunded)} reembolsados a compradores de las cifras de este mes.</>}
+                        </div>
+                    )}
+
                     {/* ── Charts Row ── */}
                     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
 

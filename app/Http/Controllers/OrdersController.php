@@ -50,7 +50,8 @@ class OrdersController extends Controller
             $query->where('status', $filters['status']);
         }
         if (in_array($filters['fulfillment'], self::FULFILLMENT_STATUSES, true)) {
-            $query->where('fulfillment_status', $filters['fulfillment']);
+            // Misma regla que los contadores: las canceladas/reembolsadas no cuentan como trabajo de bodega.
+            $query->where('fulfillment_status', $filters['fulfillment'])->counted();
         }
 
         if ($platform === 'mercadolibre' && $filters['logistic_type'] !== '') {
@@ -75,7 +76,7 @@ class OrdersController extends Controller
         // MercadoLibre: agrupar por pack_id antes de paginar
         if ($platform === 'mercadolibre') {
             $allOrders = $query
-                ->with(['sales.product', 'latestMlPdf'])
+                ->with(['sales.product', 'latestMlPdf', 'claims'])
                 ->orderByDesc('ordered_at')
                 ->get();
 
@@ -107,7 +108,8 @@ class OrdersController extends Controller
                 $saleFees     = array_sum(array_map(fn ($o) => (float) $o->sale_fees, $packOrders));
                 // El shipping_cost se registra en una sola orden del pack; tomamos el máximo
                 $shippingCost = max(array_map(fn ($o) => (float) $o->shipping_cost, $packOrders));
-                $received     = $totalAmount - $saleFees - $shippingCost;
+                $refunded     = array_sum(array_map(fn ($o) => (float) $o->refunded_amount, $packOrders));
+                $received     = max(0, $totalAmount - $saleFees - $shippingCost - $refunded);
                 $isPack       = $first->pack_id !== null && count($packOrders) > 1;
 
                 return [
@@ -117,6 +119,8 @@ class OrdersController extends Controller
                     'platform_order_id'      => $isPack ? (string) $first->pack_id : $first->platform_order_id,
                     'is_pack'                => $isPack,
                     'status'                 => $first->status,
+                    'refunded_amount'        => array_sum(array_map(fn ($o) => (float) $o->refunded_amount, $packOrders)),
+                    'claims'                 => collect($packOrders)->flatMap(fn ($o) => $o->claims)->unique('id')->map(fn ($c) => $c->present())->values(),
                     'fulfillment_status'     => $first->fulfillment_status ?? 'pending',
                     'fulfillment_updated_at' => optional($first->fulfillment_updated_at)->toDateTimeString(),
                     'pack_order_count'       => count($packOrders),
@@ -164,6 +168,8 @@ class OrdersController extends Controller
                         'platform_order_id'      => $order->platform_order_id,
                         'is_pack'                => false,
                         'status'                 => $order->status,
+                        'refunded_amount'        => (float) $order->refunded_amount,
+                        'claims'                 => [],
                         'fulfillment_status'     => $order->fulfillment_status ?? 'pending',
                         'fulfillment_updated_at' => optional($order->fulfillment_updated_at)->toDateTimeString(),
                         'total'                  => $order->total,
@@ -212,7 +218,7 @@ class OrdersController extends Controller
 
         $fulfillmentCounts = Order::query()
             ->where('platform', $platform)
-            ->where(fn ($q) => $q->whereNull('status')->orWhereNotIn('status', self::INACTIVE_STATUSES))
+            ->counted()
             ->selectRaw("fulfillment_status, COUNT(DISTINCT COALESCE(pack_id, CAST(id AS CHAR))) as total")
             ->groupBy('fulfillment_status')
             ->pluck('total', 'fulfillment_status');

@@ -34,7 +34,10 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $request->user(),
             ],
-            'pendingOrders' => fn () => $request->user() ? \App\Models\Order::pendingFulfillmentByPlatform() : null,
+            'pendingOrders' => fn () => $request->user() ? \App\Models\Order::pendingFulfillmentByPlatform() + [
+                'claimsOpen' => \App\Models\MlClaim::where('status', 'opened')->count(),
+                'claimsAction' => \App\Models\MlClaim::where('status', 'opened')->where('needs_action', true)->count(),
+            ] : null,
             'flash' => [
                 'success' => $request->session()->get('success'),
                 'error'   => $request->session()->get('error'),

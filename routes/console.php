@@ -13,6 +13,8 @@ Schedule::command('sync:woocommerce')->everyThirtyMinutes()->withoutOverlapping(
 Schedule::command('sync:mercadolibre')->everyThirtyMinutes()->withoutOverlapping();
 Schedule::command('sync:falabella')->everyThirtyMinutes()->withoutOverlapping();
 Schedule::command('sync:paris')->everyThirtyMinutes()->withoutOverlapping();
+Schedule::command('sync:ml-updates')->hourly()->withoutOverlapping();
+Schedule::command('sync:ml-claims')->everyThirtyMinutes()->withoutOverlapping();
 Schedule::command('ml:refresh-token')->cron('0 */5 * * *');
 
 // Facturación (RCV del SII): domingos 23:30 (el cron de cPanel solo corre en :00 y :30), solo si SIMPLEAPI_AUTO_SYNC=true.

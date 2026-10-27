@@ -35,9 +35,9 @@ class RentabilidadController extends Controller
         $sales = Sale::query()
             ->with(['product', 'variant', 'order'])
             ->whereHas('order', fn ($q) => $q
+                ->counted()
                 ->where('platform', $platform)
                 ->whereBetween('ordered_at', [$start, $end])
-                ->whereNotIn(DB::raw('LOWER(status)'), $this->excludedStatuses)
             )
             ->get();
 
@@ -50,7 +50,8 @@ class RentabilidadController extends Controller
             foreach ($sales as $sale) {
                 $oid = $sale->order_id;
                 if (!isset($orderReceivedMap[$oid])) {
-                    $orderReceivedMap[$oid] = (float) ($sale->order->received_amount ?? 0);
+                    // received menos lo devuelto al comprador (devoluciones parciales)
+                $orderReceivedMap[$oid] = max(0.0, (float) ($sale->order->received_amount ?? 0) - (float) ($sale->order->refunded_amount ?? 0));
                     $orderTotalsMap[$oid]   = 0;
                 }
                 $orderTotalsMap[$oid] += (float) $sale->total;
@@ -64,7 +65,7 @@ class RentabilidadController extends Controller
             $productId   = $sale->product_id ?? 0;
             $productName = $sale->product?->name ?? 'Sin nombre';
             $qty         = (int) $sale->quantity;
-            $gross       = (float) $sale->total;
+            $gross       = (float) $sale->total * $sale->order->keptFraction();
             $costUnit    = $sale->variant?->cost_price !== null
                 ? (float) $sale->variant->cost_price
                 : null;
@@ -74,7 +75,7 @@ class RentabilidadController extends Controller
                 $oid        = $sale->order_id;
                 $orderTotal = $orderTotalsMap[$oid] ?? 0;
                 $received   = $orderTotal > 0
-                    ? round($orderReceivedMap[$oid] * ($gross / $orderTotal))
+                    ? round($orderReceivedMap[$oid] * (((float) $sale->total) / $orderTotal))
                     : 0;
             } else {
                 $received = $gross;
@@ -126,14 +127,13 @@ class RentabilidadController extends Controller
             ->values();
 
         // Serie diaria para gráfico de líneas
-        $daily = Sale::query()
-            ->join('orders', 'sales.order_id', '=', 'orders.id')
+        $daily = \App\Models\Order::counted()
+            ->join('sales', 'sales.order_id', '=', 'orders.id')
             ->where('orders.platform', $platform)
             ->whereBetween('orders.ordered_at', [$start, $end])
-            ->whereNotIn(DB::raw('LOWER(orders.status)'), $this->excludedStatuses)
             ->groupBy(DB::raw('DATE(orders.ordered_at)'))
             ->orderBy(DB::raw('DATE(orders.ordered_at)'))
-            ->selectRaw('DATE(orders.ordered_at) as date, SUM(sales.quantity) as qty, SUM(sales.total) as gross')
+            ->selectRaw('DATE(orders.ordered_at) as date, SUM(sales.quantity) as qty, SUM(sales.total * GREATEST(0, 1 - COALESCE(orders.refunded_amount / NULLIF(orders.total, 0), 0))) as gross')
             ->get()
             ->map(fn ($r) => [
                 'date'  => $r->date,
@@ -152,6 +152,10 @@ class RentabilidadController extends Controller
             ? ($isMl ? $totalReceived : $totalGross) - $totalCost
             : null;
 
+        $periodOrders = \App\Models\Order::where('platform', $platform)->whereBetween('ordered_at', [$start, $end]);
+        $totalRefunded   = (float) (clone $periodOrders)->sum('refunded_amount');
+        $cancelledOrders = (clone $periodOrders)->count() - (clone $periodOrders)->counted()->count();
+
         return Inertia::render('Rentabilidad/Index', [
             'tab'      => $tab,
             'month'    => $month,
@@ -163,6 +167,8 @@ class RentabilidadController extends Controller
                 'total_received' => round($totalReceived),
                 'total_cost'     => $totalCost !== null ? round($totalCost) : null,
                 'total_profit'   => $totalProfit !== null ? round($totalProfit) : null,
+                'total_refunded' => round($totalRefunded),
+                'cancelled_orders' => $cancelledOrders,
             ],
         ]);
     }

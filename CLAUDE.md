@@ -186,6 +186,7 @@ POST /pos/products/{product}/variants          → Agrega una talla/precio
 POST /pos/products/{product}/variants/reorder  → Guarda el orden (drag & drop) de las tallas
 PATCH /pos/variants/{variant}    → Edita talla/precio/precio mayorista
 DELETE /pos/variants/{variant}   → Elimina una talla
+GET  /reclamos                   → Reclamos y devoluciones de Mercado Libre
 GET  /facturacion                → Facturación: ventas/compras del SII por mes
 POST /facturacion/sync           → Actualiza un mes desde SimpleAPI (gasta cuota)
 GET  /facturacion/export         → CSV del mes (sin gastar cuota)
@@ -404,6 +405,18 @@ SII_RUT_USUARIO=        # usuario autorizado en el SII
 SII_PASSWORD=           # clave SII (solo en el .env, nunca en git)
 SIMPLEAPI_MONTHLY_QUOTA=10
 ```
+
+---
+
+## Cancelaciones, devoluciones y reclamos (Mercado Libre)
+
+**Fuente única de verdad de los montos** — [`Order`](app/Models/Order.php): `scopeCounted()` deja fuera las órdenes con estado cancelado/devuelto/fallido (`EXCLUDED_STATUSES`) y las **reembolsadas por completo** (`refunded_amount >= total`); `EFFECTIVE_TOTAL_SQL` = `total − refunded_amount`; `keptFraction()` es la fracción vigente de una devolución parcial. Lo usan el **Dashboard** (`routes/web.php`), **Rentabilidad** (bruto y recibido escalados, recibido = `received_amount − refunded_amount`; avisa cuántas órdenes se descartaron y cuánto se devolvió), los contadores de bodega y la campana. Si se agrega una vista con totales, usar `counted()`.
+
+**`orders.refunded_amount`:** suma de `payments[].transaction_amount_refunded` de la orden de ML (`Order::refundedFromMl`). Lo escribe `sync:mercadolibre` y, para órdenes antiguas, `php artisan sync:ml-updates` (cada hora; revisa los últimos 45 días y solo actualiza estado/reembolso/`raw_json`, sin recrear ventas ni enviar correos). Es conservador: no suma la comisión que ML pueda devolver al vendedor.
+
+**Reclamos:** tabla `ml_claims` (modelo [`MlClaim`](app/Models/MlClaim.php), con los textos en español y `present()`), `php artisan sync:ml-claims [--debug]` cada 30 min contra `/post-purchase/v1/claims/search` (abiertos y cerrados últimos 90 días), `/claims/{id}` y `/post-purchase/v2/claims/{id}/returns`; el detalle solo se pide cuando el reclamo cambió. Cada reclamo se asocia a su venta por `resource` (order/shipment/payment). Pantalla `/reclamos` ([`ClaimsController`](app/Http/Controllers/ClaimsController.php) → `Claims/Index.jsx`), badge en Órdenes ("Reclamo: te toca actuar"/"Devolución en curso"…), detalle en el modal de la orden, contador en el menú y en la campana. Si la API responde 403, falta el permiso de Post-venta en la app de ML; `--debug` imprime el primer reclamo crudo para validar campos.
+
+> Los endpoints de reclamos se implementaron con la estructura documentada por ML pero **aún no se validaron con un reclamo real**: la primera vez, correr `sync:ml-claims --debug` en producción y revisar `/reclamos`.
 
 ---
 

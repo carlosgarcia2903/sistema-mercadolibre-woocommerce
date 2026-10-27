@@ -210,4 +210,35 @@ class MercadoLibreService
 
         File::put($envPath, $env);
     }
+
+    /** Reclamos del vendedor. $filters: status (opened|closed), offset, limit. Devuelve ['data'=>[], 'paging'=>[]] o lanza si falla. */
+    public function searchClaims(array $filters = []): array
+    {
+        $response = $this->requestWithAutoRefresh(function () use ($filters) {
+            return $this->client()->get($this->baseUrl . '/post-purchase/v1/claims/search', $filters);
+        });
+
+        $response->throw();
+
+        return $response->json() ?? [];
+    }
+
+    public function getClaim(int|string $claimId): array
+    {
+        $response = $this->requestWithAutoRefresh(function () use ($claimId) {
+            return $this->client()->get($this->baseUrl . '/post-purchase/v1/claims/' . $claimId);
+        });
+
+        return $response->successful() ? ($response->json() ?? []) : [];
+    }
+
+    /** Devolución asociada a un reclamo (vacío si el reclamo no tiene devolución). */
+    public function getClaimReturn(int|string $claimId): array
+    {
+        $response = $this->requestWithAutoRefresh(function () use ($claimId) {
+            return $this->client()->get($this->baseUrl . '/post-purchase/v2/claims/' . $claimId . '/returns');
+        });
+
+        return $response->successful() ? ($response->json() ?? []) : [];
+    }
 }

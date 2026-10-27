@@ -2,7 +2,7 @@ import ApplicationLogo from '@/Components/ApplicationLogo';
 import Dropdown from '@/Components/Dropdown';
 import NavLink from '@/Components/NavLink';
 import NotificationsBell from '@/Components/NotificationsBell';
-import OrdersMenu from '@/Components/OrdersMenu';
+import OrdersMenu, { PendingBadge } from '@/Components/OrdersMenu';
 import ResponsiveNavLink from '@/Components/ResponsiveNavLink';
 import { Link, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
@@ -10,6 +10,7 @@ import { Button } from '@/Components/ui/button';
 
 export default function AuthenticatedLayout({ header, children }) {
     const user = usePage().props.auth.user;
+    const claimsOpen = usePage().props.pendingOrders?.claimsOpen;
 
     const [showingNavigationDropdown, setShowingNavigationDropdown] =
         useState(false);
@@ -48,6 +49,12 @@ export default function AuthenticatedLayout({ header, children }) {
                                 Productos
                             </NavLink>
                             <OrdersMenu />
+                            <NavLink href={route('claims.index')} active={route().current('claims.index')}>
+                                <span className="flex w-full items-center justify-between">
+                                    Reclamos
+                                    <PendingBadge count={claimsOpen} />
+                                </span>
+                            </NavLink>
                             <NavLink href={route('pos.index')} active={route().current('pos.index')}>
                                 Venta en Tienda
                             </NavLink>
@@ -151,6 +158,9 @@ export default function AuthenticatedLayout({ header, children }) {
                                     Productos
                                 </ResponsiveNavLink>
                                 <OrdersMenu mobile onNavigate={() => setShowingNavigationDropdown(false)} />
+                                <ResponsiveNavLink href={route('claims.index')} active={route().current('claims.index')}>
+                                    Reclamos
+                                </ResponsiveNavLink>
                                 <ResponsiveNavLink href={route('pos.index')} active={route().current('pos.index')}>
                                     Venta en Tienda
                                 </ResponsiveNavLink>
