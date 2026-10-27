@@ -23,8 +23,9 @@ class SyncFacturacion extends Command
 
         $periods = $this->option('period') ? [$this->option('period')] : [now()->format('Ym')];
 
-        // El mes anterior se revisa hasta que quede guardado como cerrado.
-        if (!$this->option('period')) {
+        // El mes anterior solo se consulta una vez pasado el día 20: antes el SII todavía puede
+        // agregarle documentos y habría que gastar consultas de nuevo para cerrarlo.
+        if (!$this->option('period') && now()->day > 20) {
             $prev = now()->subMonthNoOverflow()->format('Ym');
             $final = TaxPeriodSync::where('period', $prev)->where('is_final', true)->count();
             if ($final < count(FacturacionSyncService::DIRECTIONS) && TaxPeriodSync::where('period', $prev)->exists()) {
