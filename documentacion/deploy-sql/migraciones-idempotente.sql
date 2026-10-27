@@ -467,6 +467,63 @@ INSERT INTO `migrations` (`migration`, `batch`)
 SELECT * FROM (SELECT '2026_10_24_120000_add_fulfillment_status_to_orders_table' AS migration, 8 AS batch) t
 WHERE NOT EXISTS (SELECT 1 FROM `migrations` WHERE migration = t.migration);
 
+-- 2026-10-27: Facturación (RCV del SII vía SimpleAPI)
+CREATE TABLE IF NOT EXISTS `tax_documents` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `direction` VARCHAR(10) NOT NULL,
+  `period` VARCHAR(6) NOT NULL,
+  `tipo_dte` SMALLINT UNSIGNED NOT NULL,
+  `tipo_label` VARCHAR(255) NULL,
+  `folio` VARCHAR(30) NOT NULL,
+  `counterparty_rut` VARCHAR(15) NOT NULL DEFAULT '',
+  `counterparty_name` VARCHAR(255) NULL,
+  `operation_type` VARCHAR(255) NULL,
+  `issued_at` DATE NULL,
+  `received_at` DATETIME NULL,
+  `exempt_amount` DECIMAL(14,2) NOT NULL DEFAULT 0,
+  `net_amount` DECIMAL(14,2) NOT NULL DEFAULT 0,
+  `vat_amount` DECIMAL(14,2) NOT NULL DEFAULT 0,
+  `total_amount` DECIMAL(14,2) NOT NULL DEFAULT 0,
+  `status` VARCHAR(255) NULL,
+  `raw` JSON NULL,
+  `created_at` TIMESTAMP NULL,
+  `updated_at` TIMESTAMP NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `tax_documents_unique` (`direction`,`tipo_dte`,`folio`,`counterparty_rut`),
+  KEY `tax_documents_direction_period_index` (`direction`,`period`)
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `tax_period_syncs` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `direction` VARCHAR(10) NOT NULL,
+  `period` VARCHAR(6) NOT NULL,
+  `synced_at` TIMESTAMP NULL,
+  `is_final` TINYINT(1) NOT NULL DEFAULT 0,
+  `documents_count` INT UNSIGNED NOT NULL DEFAULT 0,
+  `summary` JSON NULL,
+  `created_at` TIMESTAMP NULL,
+  `updated_at` TIMESTAMP NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `tax_period_syncs_direction_period_unique` (`direction`,`period`)
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `tax_api_calls` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `direction` VARCHAR(10) NOT NULL,
+  `period` VARCHAR(6) NOT NULL,
+  `http_status` SMALLINT UNSIGNED NULL,
+  `consumed` TINYINT(1) NOT NULL DEFAULT 0,
+  `note` VARCHAR(255) NULL,
+  `created_at` TIMESTAMP NULL,
+  `updated_at` TIMESTAMP NULL,
+  PRIMARY KEY (`id`),
+  KEY `tax_api_calls_created_at_index` (`created_at`)
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO `migrations` (`migration`, `batch`)
+SELECT * FROM (SELECT '2026_10_27_120000_create_facturacion_tables' AS migration, 8 AS batch) t
+WHERE NOT EXISTS (SELECT 1 FROM `migrations` WHERE migration = t.migration);
+
 -- ============================================================================
 -- Fin. Verifica en phpMyAdmin que las tablas orders, sales, product_variants
 -- y ml_pdfs tengan todas las columnas nuevas (pack_id, color, platform, etc.)

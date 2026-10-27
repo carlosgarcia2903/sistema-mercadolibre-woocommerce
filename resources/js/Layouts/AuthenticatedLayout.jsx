@@ -57,6 +57,9 @@ export default function AuthenticatedLayout({ header, children }) {
                             <NavLink href={route('reports.inventory')} active={route().current('reports.inventory')}>
                                 Inventario
                             </NavLink>
+                            <NavLink href={route('facturacion.index')} active={route().current('facturacion.index')}>
+                                Facturación
+                            </NavLink>
                         </div>
                     </div>
                     <div className="mt-auto p-4 border-t border-gray-200 dark:border-slate-800">
@@ -156,6 +159,9 @@ export default function AuthenticatedLayout({ header, children }) {
                                 </ResponsiveNavLink>
                                 <ResponsiveNavLink href={route('reports.inventory')} active={route().current('reports.inventory')}>
                                     Inventario
+                                </ResponsiveNavLink>
+                                <ResponsiveNavLink href={route('facturacion.index')} active={route().current('facturacion.index')}>
+                                    Facturación
                                 </ResponsiveNavLink>
                             </div>
                         </div>

@@ -96,6 +96,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/rentabilidad', [RentabilidadController::class, 'index'])->name('rentabilidad.index');
     Route::patch('/variants/{variant}/cost', [RentabilidadController::class, 'updateCost'])->name('variants.updateCost');
     Route::get('/ml-pdfs/{mlPdf}/download', [MlPdfsController::class, 'download'])->name('mlpdfs.download');
+    Route::get('/facturacion', [\App\Http\Controllers\FacturacionController::class, 'index'])->name('facturacion.index');
+    Route::post('/facturacion/sync', [\App\Http\Controllers\FacturacionController::class, 'sync'])->middleware('throttle:10,1')->name('facturacion.sync');
+    Route::get('/facturacion/export', [\App\Http\Controllers\FacturacionController::class, 'export'])->name('facturacion.export');
     Route::get('/reports/inventory', [ReportsController::class, 'inventory'])->name('reports.inventory');
 
     Route::get('/pos', [PosController::class, 'index'])->name('pos.index');

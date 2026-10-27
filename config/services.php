@@ -68,6 +68,11 @@ return [
         'rut_empresa' => env('SII_RUT_EMPRESA'),
         'rut_usuario' => env('SII_RUT_USUARIO'),
         'password' => env('SII_PASSWORD'),
+        'monthly_quota' => (int) env('SIMPLEAPI_MONTHLY_QUOTA', 10),
+        'cooldown_hours' => (int) env('SIMPLEAPI_COOLDOWN_HOURS', 6),
+        'auto_sync' => (bool) env('SIMPLEAPI_AUTO_SYNC', false),
+        'auto_min_hours' => (int) env('SIMPLEAPI_AUTO_MIN_HOURS', 72),
+        'reserve' => (int) env('SIMPLEAPI_RESERVE', 4),
     ],
 
 ];

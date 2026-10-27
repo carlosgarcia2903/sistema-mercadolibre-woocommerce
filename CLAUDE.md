@@ -186,6 +186,9 @@ POST /pos/products/{product}/variants          → Agrega una talla/precio
 POST /pos/products/{product}/variants/reorder  → Guarda el orden (drag & drop) de las tallas
 PATCH /pos/variants/{variant}    → Edita talla/precio/precio mayorista
 DELETE /pos/variants/{variant}   → Elimina una talla
+GET  /facturacion                → Facturación: ventas/compras del SII por mes
+POST /facturacion/sync           → Actualiza un mes desde SimpleAPI (gasta cuota)
+GET  /facturacion/export         → CSV del mes (sin gastar cuota)
 GET  /ml/callback               → OAuth callback de ML
 ```
 
@@ -376,6 +379,31 @@ Pantalla (`/pos`, [`PosController`](app/Http/Controllers/PosController.php) → 
 **Imágenes:** se guardan en `storage/app/public/pos/` vía `Storage::disk('public')`. Requiere `php artisan storage:link` (symlink `public/storage` → `storage/app/public`) — verificar que exista en producción, ya que ahí no hay migraciones automáticas de este paso.
 
 > **Fuera de alcance (v1):** no se descuenta stock (no hay columna de stock por talla, solo `products.stock` a nivel de producto general, no aplica a POS), no se registra método de pago, no hay boleta/comprobante imprimible.
+
+---
+
+## Módulo: Facturación (RCV del SII vía SimpleAPI)
+
+Pantalla `/facturacion` ([`FacturacionController`](app/Http/Controllers/FacturacionController.php) → [`Facturacion/Index.jsx`](resources/js/Pages/Facturacion/Index.jsx)) que muestra boletas, facturas, liquidaciones y notas de crédito de **ventas y compras** tal como las tiene el SII. Usa **SimpleAPI-RCV** variante *Clave SII* (`POST {SIMPLEAPI_URL}/api/RCVEmpresas/{ventas|compras}/{mes}/{año}`, multipart con campo `input` JSON, header `Authorization: <API key>`). Solo **lista** documentos: no descarga XML/PDF.
+
+**Cuota (lo importante):** el plan gratis da 10 consultas/mes (se renuevan el día 1); cada consulta = un lado (ventas *o* compras) de un mes, así que actualizar un mes completo cuesta 2. Respuestas sin documentos no gastan. Para no gastarla, todo se **guarda en BD** (`tax_documents`) y la pantalla nunca consulta sola:
+- `tax_period_syncs`: última sincronización por lado+mes y `is_final` (mes ya cerrado → no se vuelve a consultar salvo forzar). Un mes está *abierto* durante el mes y hasta el día 20 del siguiente (el SII aún puede recibirle documentos).
+- `tax_api_calls`: libro de consultas; `consumed=true` solo si trajo documentos. De ahí sale el medidor "X de N".
+- Pausa mínima (`SIMPLEAPI_COOLDOWN_HOURS`, 6 h) entre consultas del mismo mes abierto; lock para evitar doble clic; si el SII devuelve un mes vacío teniendo datos guardados, **no se borran**; errores/respuestas inválidas no cuentan cuota.
+- `FacturacionSyncService::ingest()` carga una respuesta ya descargada sin gastar consultas.
+
+**Sincronización automática** (opcional, desactivada): `SIMPLEAPI_AUTO_SYNC=true` activa `facturacion:sync --auto` a diario 07:30 en `routes/console.php`; respeta `SIMPLEAPI_AUTO_MIN_HOURS` (72 h) y deja `SIMPLEAPI_RESERVE` (4) consultas libres para uso manual. Con el plan gratis conviene dejarla apagada; al subir de plan, subir `SIMPLEAPI_MONTHLY_QUOTA` y bajar `AUTO_MIN_HOURS`. Manual: `php artisan facturacion:sync [--period=202610] [--force]`. `php artisan simpleapi:probe {ventas|compras} {mes} {año}` guarda la respuesta cruda (gasta 1 consulta).
+
+**Cálculos:** notas de crédito (tipos 60/61/112) **restan** en totales; `vat_amount` en ventas = `montoIva`, en compras = `montoIvaRecuperable`; "IVA estimado a pagar" = IVA ventas − IVA compras (referencial, el F29 lo calcula el SII). Las boletas vienen una a una (RUT cliente `66666666-6` = sin identificar); las liquidaciones de Mercado Libre (tipo 43) aparecen como ventas.
+
+**Variables `.env`:**
+```env
+SIMPLEAPI_KEY=
+SII_RUT_EMPRESA=        # con guion, ej. 78517062-8
+SII_RUT_USUARIO=        # usuario autorizado en el SII
+SII_PASSWORD=           # clave SII (solo en el .env, nunca en git)
+SIMPLEAPI_MONTHLY_QUOTA=10
+```
 
 ---
 
