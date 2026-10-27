@@ -62,4 +62,12 @@ return [
         'api_key' => env('PARIS_API_KEY'),
     ],
 
+    'simpleapi' => [
+        'url' => env('SIMPLEAPI_URL', 'https://servicios.simpleapi.cl'),
+        'api_key' => env('SIMPLEAPI_KEY'),
+        'rut_empresa' => env('SII_RUT_EMPRESA'),
+        'rut_usuario' => env('SII_RUT_USUARIO'),
+        'password' => env('SII_PASSWORD'),
+    ],
+
 ];
