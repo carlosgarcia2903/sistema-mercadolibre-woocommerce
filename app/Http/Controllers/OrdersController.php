@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Mail\PedidoEntregadoWooCommerce;
 use App\Models\MlPdf;
 use App\Models\Order;
+use App\Services\FalabellaService;
 use App\Services\WooCommerceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
@@ -354,5 +355,58 @@ class OrdersController extends Controller
         ]);
 
         return response()->json(['fulfillment_status' => $validated['fulfillment_status']]);
+    }
+
+    /** Confirma en Falabella el envío de una orden pendiente y refresca su estado y etiqueta. */
+    public function confirmFalabella(Order $order, FalabellaService $fb)
+    {
+        if ($order->platform !== 'falabella') {
+            return response()->json(['error' => 'Solo se pueden confirmar órdenes de Falabella.'], 422);
+        }
+
+        set_time_limit(180);
+
+        // Se vuelve a consultar el estado real en Falabella: evita confirmar dos veces o una orden que ya cambió.
+        try {
+            $items = $fb->getOrderItems($order->platform_order_id);
+        } catch (\Throwable $e) {
+            return response()->json(['error' => 'No se pudo consultar Falabella: ' . $e->getMessage()], 502);
+        }
+
+        if (empty($items)) {
+            return response()->json(['error' => 'Falabella no devolvió ítems para esta orden.'], 422);
+        }
+
+        $notPending = collect($items)->pluck('Status')->unique()->reject(fn ($s) => $s === 'pending')->values();
+        if ($notPending->isNotEmpty()) {
+            return response()->json(['error' => 'Esta orden ya no está pendiente en Falabella (estado: ' . $notPending->implode(', ') . '). Se actualizó la lista.'], 422);
+        }
+
+        $result = $fb->setStatusToReadyToShip(
+            collect($items)->pluck('OrderItemId')->map(fn ($i) => (int) $i)->all(),
+            $items[0]['ShipmentProvider'] ?? null,
+            $items[0]['PackageId'] ?? null,
+        );
+
+        if (!$result['ok']) {
+            return response()->json(['error' => 'Falabella rechazó la confirmación: ' . $result['message'] . ' No se cambió nada; puedes confirmarla en el panel de Falabella.'], 422);
+        }
+
+        $order->update(['status' => 'ready_to_ship']);
+
+        // Trae el estado actualizado y la etiqueta definitiva.
+        try {
+            Artisan::call('sync:falabella', ['--after' => now()->subDays(3)->toIso8601String()]);
+        } catch (\Throwable $e) {
+            // La confirmación ya se hizo; el próximo sync programado completará el resto.
+        }
+
+        $pdf = $order->fresh()->latestMlPdf;
+
+        return response()->json([
+            'ok' => true,
+            'status' => 'ready_to_ship',
+            'pdf_download_url' => $pdf?->pdf_path ? route('mlpdfs.download', $pdf) : null,
+        ]);
     }
 }

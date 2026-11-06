@@ -214,4 +214,47 @@ class FalabellaService
 
         return [];
     }
+
+    /**
+     * Confirma el envío (pending → ready_to_ship), igual que "Confirmar envío" en el panel de Falabella.
+     * Acción real y no reversible. Prueba combinaciones de parámetros de menor a mayor simpleza,
+     * pero solo reintenta cuando el error es de parámetros; ante cualquier otro error se detiene.
+     *
+     * @return array{ok:bool,code:?string,message:?string}
+     */
+    public function setStatusToReadyToShip(array $orderItemIds, ?string $shippingProvider = null, ?string $packageId = null): array
+    {
+        $ids = '[' . implode(',', $orderItemIds) . ']';
+        $attempts = array_values(array_unique([
+            json_encode(array_filter(['OrderItemIds' => $ids, 'DeliveryType' => 'dropship', 'ShippingProvider' => $shippingProvider, 'PackageId' => $packageId])),
+            json_encode(array_filter(['OrderItemIds' => $ids, 'DeliveryType' => 'dropship', 'PackageId' => $packageId])),
+            json_encode(['OrderItemIds' => $ids, 'DeliveryType' => 'dropship']),
+        ]));
+
+        // Errores de parámetros: vale la pena probar la siguiente combinación.
+        $retryable = ['E001', 'E024', 'E025', 'E091', 'E121', 'E094', 'E095'];
+        $last = ['ok' => false, 'code' => null, 'message' => 'Sin respuesta de Falabella.'];
+
+        foreach ($attempts as $json) {
+            $params = $this->buildParams('SetStatusToReadyToShip', json_decode($json, true));
+            $url = $this->baseUrl . '/?' . http_build_query($params, '', '&', PHP_QUERY_RFC3986);
+
+            $response = $this->client()->withBody('', 'application/x-www-form-urlencoded')->post($url);
+            $data = $response->json() ?? [];
+
+            if (isset($data['SuccessResponse'])) {
+                return ['ok' => true, 'code' => null, 'message' => null];
+            }
+
+            $message = (string) data_get($data, 'ErrorResponse.Head.ErrorMessage', 'HTTP ' . $response->status());
+            $code = preg_match('/E\d{3}/', $message, $m) ? $m[0] : null;
+            $last = ['ok' => false, 'code' => $code, 'message' => $message];
+
+            if (!in_array($code, $retryable, true)) {
+                break;
+            }
+        }
+
+        return $last;
+    }
 }

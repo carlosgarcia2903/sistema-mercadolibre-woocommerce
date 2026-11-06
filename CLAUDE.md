@@ -232,6 +232,8 @@ php artisan sync:falabella --after=2026-06-01T00:00:00Z # histórico
 
 **Qué hace:** `GetOrders` paginado → por cada orden `GetOrderItems` (precios, SKU, envío) → persiste `Order`/`Sale`/`Product` con `platform='falabella'` → descarga etiqueta vía `GetDocument` (guardada en `ml_pdfs` con `platform='falabella'`) → email de orden nueva. La API usa firma HMAC-SHA256 (ver `FalabellaService`). El `received_amount` es estimado (`total − envío`); la comisión de venta queda en 0 hasta integrar la API de finanzas.
 
+**Confirmar envío desde el sistema:** en `/orders?tab=falabella`, las órdenes `pending` ("Por confirmar") tienen un botón *Confirmar envío* (`POST /orders/{order}/falabella/confirm` → `OrdersController::confirmFalabella` → `FalabellaService::setStatusToReadyToShip`) equivalente a "Confirmar" del panel: pasa la orden de `pending` a `ready_to_ship`. Antes de enviar vuelve a consultar el estado real en Falabella (si ya no está pendiente, no hace nada), prueba combinaciones de parámetros (`DeliveryType=dropship`, `ShippingProvider`, `PackageId`) solo ante errores de parámetros, y tras confirmar relanza `sync:falabella` y abre la etiqueta PDF. Es una acción **real e irreversible**; en el panel Falabella pide confirmarla solo con la etiqueta ya impresa (la etiqueta de las pendientes ya se descarga con el sync). Los parámetros exactos de `SetStatusToReadyToShip` **no estaban documentados del todo**: validar con la primera orden real. "Cancelar" no está integrado. Las órdenes llegan por `GetOrders` solo con las credenciales de la cuenta correcta (si la lista viene sin órdenes nuevas, revisar que `FALABELLA_USER_ID`/`FALABELLA_API_KEY` sean los de la cuenta que ve las ventas).
+
 ### `php artisan sync:paris`
 
 Sincroniza órdenes de Paris Marketplace.

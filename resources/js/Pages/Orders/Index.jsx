@@ -142,6 +142,10 @@ function toSpanishOrderStatus(status) {
     return ORDER_STATUS_LABELS[status] || status.replaceAll('_', ' ');
 }
 
+// En Falabella "pending" es una orden por confirmar; en Sitio Web sí es "pendiente de pago".
+const orderStatusLabel = (status, tab) =>
+    tab === 'falabella' && status === 'pending' ? 'Por confirmar' : toSpanishOrderStatus(status);
+
 function SpinnerIcon({ className = 'h-3.5 w-3.5' }) {
     return (
         <svg className={`animate-spin ${className}`} viewBox="0 0 24 24" fill="none">
@@ -239,6 +243,7 @@ export default function Index({ auth, orders, tab, filters = {}, statusOptions =
     const [statusSaved, setStatusSaved] = useState(false);
     const [deliveryEmailSent, setDeliveryEmailSent] = useState(false);
     const [filtersOpen, setFiltersOpen] = useState(false);
+    const [confirmingId, setConfirmingId] = useState(null);
     const [fulfillmentOverrides, setFulfillmentOverrides] = useState({});
     const [fulfillmentBusy, setFulfillmentBusy] = useState({});
 
@@ -254,6 +259,25 @@ export default function Index({ auth, orders, tab, filters = {}, statusOptions =
             alert('No se pudo guardar el estado de bodega: ' + (e.response?.data?.message || e.message));
         } finally {
             setFulfillmentBusy((p) => ({ ...p, [order.id]: false }));
+        }
+    };
+
+    const confirmFalabella = async (o) => {
+        const ok = confirm(
+            `¿Confirmar el envío de la orden ${o.platform_order_id} en Falabella?\n\nHazlo solo si ya imprimiste la etiqueta y tienes el producto listo. Esta acción no se puede deshacer.`,
+        );
+        if (!ok) return;
+
+        setConfirmingId(o.id);
+        try {
+            const { data } = await axios.post(route('orders.falabella.confirm', o.id));
+            router.reload({ only: ['orders', 'fulfillmentCounts', 'pendingOrders'], preserveScroll: true });
+            if (data.pdf_download_url) window.open(data.pdf_download_url, '_blank');
+        } catch (e) {
+            alert(e.response?.data?.error || e.message);
+            router.reload({ only: ['orders'], preserveScroll: true });
+        } finally {
+            setConfirmingId(null);
         }
     };
 
@@ -532,7 +556,7 @@ export default function Index({ auth, orders, tab, filters = {}, statusOptions =
                                                 >
                                                     <option value="">Estado (todos)</option>
                                                     {statusOptions.map((status) => (
-                                                        <option key={status} value={status}>{toSpanishOrderStatus(status)}</option>
+                                                        <option key={status} value={status}>{orderStatusLabel(status, tab)}</option>
                                                     ))}
                                                 </select>
                                                 {tab !== 'presencial' && (
@@ -639,7 +663,7 @@ export default function Index({ auth, orders, tab, filters = {}, statusOptions =
                                             </td>
                                             <td className="py-2.5 px-4 text-gray-700 dark:text-gray-200">{o.customer_name || '-'}</td>
                                             <td className="py-2.5 px-4 text-gray-600 dark:text-gray-300">
-                                                <span className={CANCELLED.includes((o.status || '').toLowerCase()) ? 'font-semibold text-red-600 dark:text-red-400' : ''}>{toSpanishOrderStatus(o.status)}</span>
+                                                <span className={CANCELLED.includes((o.status || '').toLowerCase()) ? 'font-semibold text-red-600 dark:text-red-400' : ''}>{orderStatusLabel(o.status, tab)}</span>
                                                 {(o.claims || []).length > 0 && (
                                                     <div className="mt-1 flex flex-col items-start gap-1">
                                                         {o.claims.map((c) => <ClaimBadge key={c.id} claim={c} />)}
@@ -687,6 +711,17 @@ export default function Index({ auth, orders, tab, filters = {}, statusOptions =
                                                         </a>
                                                     ) : (
                                                         <span className="text-xs text-gray-400">—</span>
+                                                    )}
+                                                    {tab === 'falabella' && (o.status || '').toLowerCase() === 'pending' && (
+                                                        <button
+                                                            type="button"
+                                                            disabled={confirmingId === o.id}
+                                                            onClick={() => confirmFalabella(o)}
+                                                            className="mt-1.5 block w-full rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-60 whitespace-nowrap"
+                                                            title="Confirma el envío en Falabella (equivale a Confirmar en su panel)"
+                                                        >
+                                                            {confirmingId === o.id ? 'Confirmando…' : 'Confirmar envío'}
+                                                        </button>
                                                     )}
                                                 </td>
                                             )}
@@ -812,7 +847,7 @@ export default function Index({ auth, orders, tab, filters = {}, statusOptions =
                                             )}
                                         </>
                                     ) : (
-                                        <span className="bg-white/15 px-3 py-1 rounded-lg text-white text-sm font-semibold uppercase">{toSpanishOrderStatus(selectedOrder.status)}</span>
+                                        <span className="bg-white/15 px-3 py-1 rounded-lg text-white text-sm font-semibold uppercase">{orderStatusLabel(selectedOrder.status, tab)}</span>
                                     )}
                                 </div>
                             </div>
